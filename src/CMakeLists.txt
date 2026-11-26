@@ -8,6 +8,8 @@ add_library(winssh_core STATIC
     app/ConnectPlan.h
     app/EscapeKeys.cpp
     app/EscapeKeys.h
+    app/PickerFlow.cpp
+    app/PickerFlow.h
     app/ProfileCommands.cpp
     app/ProfileCommands.h
     app/RulesCommands.cpp
@@ -36,6 +38,16 @@ add_library(winssh_core STATIC
     highlight/Rules.h
     highlight/VtScanner.cpp
     highlight/VtScanner.h
+    picker/PickerLoop.cpp
+    picker/PickerLoop.h
+    picker/PickerModel.cpp
+    picker/PickerModel.h
+    picker/PickerView.cpp
+    picker/PickerView.h
+    picker/ProfileDialog.cpp
+    picker/ProfileDialog.h
+    picker/ProfileForm.cpp
+    picker/ProfileForm.h
     ssh/Auth.cpp
     ssh/Auth.h
     ssh/KnownHosts.cpp

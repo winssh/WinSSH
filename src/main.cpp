@@ -1,9 +1,11 @@
 // WinSSH entry point.
 #include "Version.h"
 #include "app/Connect.h"
+#include "app/PickerFlow.h"
 #include "app/ProfileCommands.h"
 #include "app/RulesCommands.h"
 #include "cli/CommandLine.h"
+#include "picker/ProfileDialog.h"
 #include "util/Utf8.h"
 
 #include <windows.h>
@@ -32,6 +34,9 @@ void PrintVersion()
 
 int wmain(int argc, wchar_t *argv[])
 {
+    // First thing: the window with focus now is the terminal (used to place the profile dialog).
+    winssh::picker::CaptureTerminalWindow();
+
     // Print UTF-8 correctly in Windows Terminal and conhost.
     ::SetConsoleOutputCP(CP_UTF8);
 
@@ -59,11 +64,7 @@ int wmain(int argc, wchar_t *argv[])
         return kExitOk;
 
     case winssh::cli::Action::Picker:
-        std::fprintf(stderr,
-                     "winssh: the connection picker is not implemented yet.\n"
-                     "Use 'winssh --list' to see profiles and recent connections, then 'winssh <profile>'.\n\n%s",
-                     winssh::cli::UsageText().c_str());
-        return kExitError;
+        return winssh::app::RunPicker(o);
 
     case winssh::cli::Action::Connect:
         return winssh::app::RunConnect(o);

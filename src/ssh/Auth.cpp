@@ -275,7 +275,7 @@ AuthResult Authenticate(LIBSSH2_SESSION *s, const AuthOptions &o, const Prompter
             {
                 r.storedPasswordRejected = true;
                 if (notify)
-                    notify("The saved password was not accepted.\r\n");
+                    notify("The remembered password was not accepted.\r\n");
             }
             else if (!ctx.cancelled && attempt + 1 < tries && notify)
             {
@@ -304,7 +304,7 @@ AuthResult Authenticate(LIBSSH2_SESSION *s, const AuthOptions &o, const Prompter
             }
             r.storedPasswordRejected = true;
             if (notify)
-                notify("The saved password was not accepted.\r\n");
+                notify("The remembered password was not accepted.\r\n");
         }
         for (int attempt = 0; attempt < o.maxPasswordTries; ++attempt)
         {
