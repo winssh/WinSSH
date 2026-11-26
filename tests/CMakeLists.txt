@@ -10,6 +10,7 @@ add_executable(winssh_tests
     test_profiles.cpp
     test_rules.cpp
     test_utf8.cpp
+    test_wt.cpp
 )
 target_link_libraries(winssh_tests PRIVATE winssh_core Catch2::Catch2WithMain)
 

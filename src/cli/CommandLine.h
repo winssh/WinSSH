@@ -36,6 +36,8 @@ enum class Action
     DeleteProfile,   // --delete <id>
     ListProfiles,    // --list
     ImportSshConfig, // --import-ssh-config
+    WtInstall,       // --wt-install
+    WtUninstall,     // --wt-uninstall
 };
 
 struct Options

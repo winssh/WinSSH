@@ -125,7 +125,8 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
         return true;
     };
     const char *kOneAction =
-        "use only one of --check-rules, --test-rules, --init-rules, --save, --delete, --list, --import-ssh-config";
+        "use only one of --check-rules, --test-rules, --init-rules, --save, --delete, --list, --import-ssh-config, "
+        "--wt-install, --wt-uninstall";
 
     for (size_t i = 0; i < args.size(); ++i)
     {
@@ -213,11 +214,14 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             o.legacyAlgorithms = true;
             continue;
         }
-        if (a == "--check-rules" || a == "--init-rules" || a == "--list" || a == "--import-ssh-config")
+        if (a == "--check-rules" || a == "--init-rules" || a == "--list" || a == "--import-ssh-config" ||
+            a == "--wt-install" || a == "--wt-uninstall")
         {
             const Action act = a == "--check-rules" ? Action::CheckRules
                                : a == "--init-rules" ? Action::InitRules
                                : a == "--list"       ? Action::ListProfiles
+                               : a == "--wt-install" ? Action::WtInstall
+                               : a == "--wt-uninstall" ? Action::WtUninstall
                                                      : Action::ImportSshConfig;
             if (!setSpecial(act))
                 return Fail(kOneAction);
@@ -320,6 +324,10 @@ std::string UsageText()
            "  winssh --list                   List profiles and recent connections\n"
            "  winssh --delete <id>            Delete a profile and its saved password\n"
            "  winssh --import-ssh-config      Add profiles from ~/.ssh/config Host entries\n"
+           "\n"
+           "Windows Terminal:\n"
+           "  winssh --wt-install             Add WinSSH and your profiles to the Windows Terminal menu\n"
+           "  winssh --wt-uninstall           Remove them again\n"
            "\n"
            "Highlight rules (%APPDATA%\\WinSSH\\highlight.json):\n"
            "  winssh --init-rules             Create a starter rules file\n"

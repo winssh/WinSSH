@@ -8,6 +8,7 @@
 #include "picker/ProfileDialog.h"
 #include "picker/ProfileForm.h"
 #include "vault/PasswordVault.h"
+#include "wt/Fragment.h"
 
 #include <windows.h>
 
@@ -59,6 +60,7 @@ std::string SaveFromForm(picker::ProfileForm &form, std::vector<config::Profile>
     std::string error;
     if (!config::SaveProfiles(config::ProfilesPath(), profiles, &error))
         return "Could not save: " + error;
+    const std::string wtError = wt::SyncIfInstalled(profiles);
 
     std::string note;
     const bool renamed = !form.originalId.empty() && form.originalId != saved.id;
@@ -87,6 +89,8 @@ std::string SaveFromForm(picker::ProfileForm &form, std::vector<config::Profile>
             vault.Remove(form.originalId);
         }
     }
+    if (!wtError.empty())
+        note += " (" + wtError + ")";
     return "Saved profile '" + saved.id + "'" + note + ".";
 }
 
@@ -170,6 +174,8 @@ int RunPicker(const cli::Options &flags)
             }
             const bool hadPassword = vault::PasswordVault().Remove(id);
             status = "Deleted profile '" + id + "'" + (hadPassword ? " and its saved password." : ".");
+            if (const std::string wtError = wt::SyncIfInstalled(pf.profiles); !wtError.empty())
+                status += " (" + wtError + ")";
             break;
         }
 
