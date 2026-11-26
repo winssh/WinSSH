@@ -24,7 +24,7 @@ winssh [options] [user@]host[:port]
 
 ### Prerequisites
 
-- **Visual Studio 2022** with the "Desktop development with C++" workload
+- **Visual Studio 2022 or newer** with the "Desktop development with C++" workload
 - **CMake** 3.21 or newer on `PATH`
 - **vcpkg**, with the `VCPKG_ROOT` environment variable set to its folder
 

@@ -4,8 +4,8 @@
   "configurePresets": [
     {
       "name": "default",
-      "displayName": "Visual Studio 2022, x64, vcpkg (static)",
-      "generator": "Visual Studio 17 2022",
+      "displayName": "Visual Studio (newest installed), x64, vcpkg (static)",
+      "description": "No fixed generator: CMake picks the newest Visual Studio, so VS 2022 locally and newer VS on CI runners both work.",
       "architecture": "x64",
       "binaryDir": "${sourceDir}/build",
       "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
