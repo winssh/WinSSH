@@ -155,6 +155,14 @@ bool VerifyHostKey(ssh::Session &session, const std::string &host, int port, con
 
 int RunConnect(const cli::Options &options)
 {
+    const auto profiles = config::LoadProfiles(config::ProfilesPath());
+    for (const auto &e : profiles.errors)
+        PrintError("winssh: profiles.json: " + e + "\r\n");
+    return RunConnectPlan(ResolveConnect(options, profiles.profiles), nullptr);
+}
+
+int RunConnectPlan(const ConnectPlan &plan, const std::string *oneTimePassword)
+{
     console::ConsoleModeGuard guard;
     guard.EnableVtOutput();
 
@@ -163,11 +171,6 @@ int RunConnect(const cli::Options &options)
         PrintError("winssh: stdin is not a console; run WinSSH in a terminal.\r\n");
         return kExitConnectionError;
     }
-
-    const auto profiles = config::LoadProfiles(config::ProfilesPath());
-    for (const auto &e : profiles.errors)
-        PrintError("winssh: profiles.json: " + e + "\r\n");
-    const ConnectPlan plan = ResolveConnect(options, profiles.profiles);
 
     const std::string user = plan.user.empty() ? LocalUserName() : plan.user;
     const std::string &host = plan.host;
@@ -218,7 +221,9 @@ int RunConnect(const cli::Options &options)
     // Saved password (profile with savePassword) from Windows Credential Manager.
     const vault::PasswordVault vault;
     std::optional<std::string> stored;
-    if (plan.savePassword && !plan.profileId.empty())
+    if (oneTimePassword && !oneTimePassword->empty())
+        stored = *oneTimePassword; // typed in the profile dialog
+    else if (plan.savePassword && !plan.profileId.empty())
         stored = vault.Load(plan.profileId);
 
     ssh::AuthOptions auth;

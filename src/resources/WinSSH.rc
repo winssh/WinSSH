@@ -11,6 +11,43 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 // Icon with the lowest ID is used as the application icon.
 IDI_WINSSH ICON "../../assets/icons/WinSSH.ico"
 
+// Profile dialog (create / edit). Opened from the picker with Ctrl+N, Ctrl+E or Ctrl+S.
+IDD_PROFILE DIALOGEX 0, 0, 300, 234
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "WinSSH profile"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "Profile &ID:", -1, 10, 12, 72, 8
+    EDITTEXT        IDC_PF_ID, 85, 10, 110, 13, ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT           "&Name:", -1, 10, 30, 72, 8
+    EDITTEXT        IDC_PF_NAME, 85, 28, 205, 13, ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT           "&Host:", -1, 10, 48, 72, 8
+    EDITTEXT        IDC_PF_HOST, 85, 46, 140, 13, ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT           "&Port:", -1, 232, 48, 20, 8
+    EDITTEXT        IDC_PF_PORT, 255, 46, 35, 13, ES_NUMBER | WS_TABSTOP
+    LTEXT           "&User:", -1, 10, 66, 72, 8
+    EDITTEXT        IDC_PF_USER, 85, 64, 110, 13, ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT           "&Key file:", -1, 10, 84, 72, 8
+    EDITTEXT        IDC_PF_KEY, 85, 82, 150, 13, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON      "&Browse...", IDC_PF_BROWSE, 240, 81, 50, 14, WS_TABSTOP
+    AUTOCHECKBOX    "&Save password in Windows Credential Manager", IDC_PF_SAVEPW, 85, 100, 205, 10, WS_TABSTOP
+    LTEXT           "Pass&word:", -1, 10, 116, 72, 8
+    EDITTEXT        IDC_PF_PASSWORD, 85, 114, 140, 13, ES_PASSWORD | ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT           "Hi&ghlight sets:", -1, 10, 134, 72, 8
+    EDITTEXT        IDC_PF_HIGHLIGHT, 85, 132, 205, 13, ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT           "Keep&alive (s):", -1, 10, 152, 72, 8
+    EDITTEXT        IDC_PF_KEEPALIVE, 85, 150, 35, 13, ES_NUMBER | WS_TABSTOP
+    LTEXT           "Host key polic&y:", -1, 10, 170, 72, 8
+    COMBOBOX        IDC_PF_POLICY, 85, 168, 120, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "Allow &legacy algorithms (old switches, routers)", IDC_PF_LEGACY, 85, 186, 205, 10, WS_TABSTOP
+    LTEXT           "", IDC_PF_ERROR, 10, 200, 280, 9
+    PUSHBUTTON      "&Connect", IDC_PF_CONNECT, 10, 213, 55, 14, WS_TABSTOP
+    PUSHBUTTON      "Sa&ve", IDC_PF_SAVE, 125, 213, 50, 14, WS_TABSTOP
+    DEFPUSHBUTTON   "Save && C&onnect", IDOK, 180, 213, 62, 14, WS_TABSTOP
+    PUSHBUTTON      "Cancel", IDCANCEL, 247, 213, 43, 14, WS_TABSTOP
+END
+
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION APP_VERSION_RC
  PRODUCTVERSION APP_VERSION_RC
