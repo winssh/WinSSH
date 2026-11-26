@@ -1,6 +1,7 @@
 // WinSSH entry point.
 #include "Version.h"
 #include "app/Connect.h"
+#include "app/ProfileCommands.h"
 #include "app/RulesCommands.h"
 #include "cli/CommandLine.h"
 #include "util/Utf8.h"
@@ -58,7 +59,9 @@ int wmain(int argc, wchar_t *argv[])
         return kExitOk;
 
     case winssh::cli::Action::Picker:
-        std::fprintf(stderr, "winssh: the connection picker is not implemented yet (M4).\n\n%s",
+        std::fprintf(stderr,
+                     "winssh: the connection picker is not implemented yet.\n"
+                     "Use 'winssh --list' to see profiles and recent connections, then 'winssh <profile>'.\n\n%s",
                      winssh::cli::UsageText().c_str());
         return kExitError;
 
@@ -73,6 +76,18 @@ int wmain(int argc, wchar_t *argv[])
 
     case winssh::cli::Action::InitRules:
         return winssh::app::RunInitRules();
+
+    case winssh::cli::Action::SaveProfile:
+        return winssh::app::RunSaveProfile(o);
+
+    case winssh::cli::Action::DeleteProfile:
+        return winssh::app::RunDeleteProfile(o);
+
+    case winssh::cli::Action::ListProfiles:
+        return winssh::app::RunListProfiles();
+
+    case winssh::cli::Action::ImportSshConfig:
+        return winssh::app::RunImportSshConfig();
     }
     return kExitError;
 }

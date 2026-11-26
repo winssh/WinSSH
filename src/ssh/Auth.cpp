@@ -114,6 +114,11 @@ struct KbdContext
 {
     const Prompter *prompt = nullptr;
     bool cancelled = false;
+    const std::string *stored = nullptr; // saved password, offered once
+    bool storedOffered = false;
+    bool usedStoredThisRound = false;
+    std::string lastSecret; // last hidden answer the user typed
+    ~KbdContext() { Wipe(lastSecret); }
 };
 
 KbdContext *g_kbd = nullptr; // keyboard-interactive callback has no user pointer we control
@@ -139,17 +144,34 @@ void KbdCallback(const char *name, int nameLen, const char *instruction, int ins
         responses[i].length = 0;
         if (ctx->cancelled)
             continue;
-        std::string text(reinterpret_cast<const char *>(prompts[i].text), prompts[i].length);
-        if (!headerShown)
+        const bool secret = prompts[i].echo == 0;
+        std::optional<std::string> answer;
+        if (secret && ctx->stored && !ctx->storedOffered)
         {
-            text = header + text;
-            headerShown = true;
+            // First hidden prompt (the password): answer with the saved password once.
+            ctx->storedOffered = true;
+            ctx->usedStoredThisRound = true;
+            answer = *ctx->stored;
         }
-        auto answer = (*ctx->prompt)(text, prompts[i].echo != 0);
-        if (!answer)
+        else
         {
-            ctx->cancelled = true;
-            continue;
+            std::string text(reinterpret_cast<const char *>(prompts[i].text), prompts[i].length);
+            if (!headerShown)
+            {
+                text = header + text;
+                headerShown = true;
+            }
+            answer = (*ctx->prompt)(text, !secret);
+            if (!answer)
+            {
+                ctx->cancelled = true;
+                continue;
+            }
+            if (secret)
+            {
+                Wipe(ctx->lastSecret);
+                ctx->lastSecret = *answer;
+            }
         }
         // libssh2 frees responses with its default free().
         char *copy = static_cast<char *>(std::malloc(answer->size() + 1));
@@ -227,18 +249,38 @@ AuthResult Authenticate(LIBSSH2_SESSION *s, const AuthOptions &o, const Prompter
     {
         KbdContext ctx;
         ctx.prompt = &prompt;
+        ctx.stored = o.storedPassword;
         g_kbd = &ctx;
-        for (int attempt = 0; attempt < o.maxPasswordTries && !ctx.cancelled; ++attempt)
+        // One extra round when a saved password is tried first, so the user still gets all tries.
+        const int tries = o.maxPasswordTries + (o.storedPassword ? 1 : 0);
+        for (int attempt = 0; attempt < tries && !ctx.cancelled; ++attempt)
         {
+            ctx.usedStoredThisRound = false;
             if (libssh2_userauth_keyboard_interactive_ex(s, o.user.c_str(), ulen, KbdCallback) == 0)
             {
                 g_kbd = nullptr;
                 r.ok = true;
-                r.method = "keyboard-interactive";
+                if (ctx.usedStoredThisRound)
+                {
+                    r.method = "keyboard-interactive (saved password)";
+                }
+                else
+                {
+                    r.method = "keyboard-interactive";
+                    r.typedPassword = ctx.lastSecret;
+                }
                 return r;
             }
-            if (!ctx.cancelled && attempt + 1 < o.maxPasswordTries && notify)
+            if (ctx.usedStoredThisRound)
+            {
+                r.storedPasswordRejected = true;
+                if (notify)
+                    notify("The saved password was not accepted.\r\n");
+            }
+            else if (!ctx.cancelled && attempt + 1 < tries && notify)
+            {
                 notify("Permission denied, please try again.\r\n");
+            }
         }
         g_kbd = nullptr;
         if (ctx.cancelled)
@@ -250,6 +292,20 @@ AuthResult Authenticate(LIBSSH2_SESSION *s, const AuthOptions &o, const Prompter
 
     if (Offers(r.serverMethods, "password"))
     {
+        if (o.storedPassword && !r.storedPasswordRejected)
+        {
+            const int rc = libssh2_userauth_password_ex(s, o.user.c_str(), ulen, o.storedPassword->c_str(),
+                                                        static_cast<unsigned int>(o.storedPassword->size()), nullptr);
+            if (rc == 0)
+            {
+                r.ok = true;
+                r.method = "password (saved)";
+                return r;
+            }
+            r.storedPasswordRejected = true;
+            if (notify)
+                notify("The saved password was not accepted.\r\n");
+        }
         for (int attempt = 0; attempt < o.maxPasswordTries; ++attempt)
         {
             auto pass = prompt(o.user + "@" + o.host + "'s password: ", false);
@@ -260,13 +316,15 @@ AuthResult Authenticate(LIBSSH2_SESSION *s, const AuthOptions &o, const Prompter
             }
             const int rc = libssh2_userauth_password_ex(s, o.user.c_str(), ulen, pass->c_str(),
                                                         static_cast<unsigned int>(pass->size()), nullptr);
-            Wipe(*pass);
             if (rc == 0)
             {
                 r.ok = true;
                 r.method = "password";
+                r.typedPassword = *pass;
+                Wipe(*pass);
                 return r;
             }
+            Wipe(*pass);
             if (attempt + 1 < o.maxPasswordTries && notify)
                 notify("Permission denied, please try again.\r\n");
         }

@@ -1,5 +1,7 @@
 #include "util/Paths.h"
 
+#include "util/Utf8.h"
+
 #include <windows.h>
 
 #include <string>
@@ -43,6 +45,18 @@ std::filesystem::path ConfigDir()
     if (!appData.empty())
         return std::filesystem::path(appData) / L"WinSSH";
     return HomeDir() / L"AppData" / L"Roaming" / L"WinSSH";
+}
+
+std::string ExpandHome(const std::string &path)
+{
+    if (path == "~")
+        return WideToUtf8(HomeDir().wstring());
+    if (path.size() >= 2 && path[0] == '~' && (path[1] == '/' || path[1] == '\\'))
+    {
+        std::filesystem::path p = HomeDir() / std::filesystem::path(Utf8ToWide(path.substr(2)));
+        return WideToUtf8(p.make_preferred().wstring());
+    }
+    return path;
 }
 
 } // namespace winssh::util

@@ -20,8 +20,9 @@ public:
 };
 
 // Host-key algorithms in the order we offer them: ed25519 first (OpenSSH's choice, so existing
-// known_hosts entries match), then ECDSA and RSA-SHA2. Legacy ssh-rsa (SHA-1) is left out.
-std::string HostKeyPreference(LIBSSH2_SESSION *session);
+// known_hosts entries match), then ECDSA and RSA-SHA2. Legacy ssh-rsa / ssh-dss (SHA-1) only
+// when `legacy` is set (old switches and routers).
+std::string HostKeyPreference(LIBSSH2_SESSION *session, bool legacy = false);
 
 class Session
 {
@@ -33,8 +34,9 @@ public:
 
     // TCP connect (all resolved addresses) with a timeout. Throws Error.
     void Connect(const std::string &host, int port, std::chrono::seconds timeout);
-    // SSH handshake in blocking mode. Throws Error.
-    void Handshake();
+    // SSH handshake in blocking mode. `legacyAlgorithms` also offers SHA-1 host keys and key
+    // exchange and CBC ciphers for old devices. Throws Error.
+    void Handshake(bool legacyAlgorithms = false);
 
     LIBSSH2_SESSION *Raw() const { return session_; }
     boost::asio::ip::tcp::socket &Socket() { return socket_; }

@@ -22,14 +22,20 @@ struct AuthOptions
     std::vector<std::string> keyFiles;  // filled by DefaultKeyFiles() when identityFile is empty
     bool useAgent = true;
     int maxPasswordTries = 3;
+    // Saved password (Windows Credential Manager), tried once before asking the user.
+    const std::string *storedPassword = nullptr;
 };
 
 struct AuthResult
 {
     bool ok = false;
     bool cancelled = false;
-    std::string method;       // method that worked, e.g. "publickey (agent)"
+    std::string method;        // method that worked, e.g. "publickey (agent)"
     std::string serverMethods; // what the server offered, for error messages
+    bool storedPasswordRejected = false;
+    // Password the user typed when it worked (password or keyboard-interactive), so the caller can
+    // save it. Wipe it after use (vault::Wipe).
+    std::string typedPassword;
 };
 
 // %USERPROFILE%\.ssh\id_ed25519, id_ecdsa, id_rsa — only the ones that exist.

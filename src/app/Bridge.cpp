@@ -20,7 +20,7 @@ Bridge::Bridge(asio::io_context &io, ssh::Session &session, LIBSSH2_CHANNEL *cha
                console::OutputWriter &output, highlight::Highlighter *highlighter, RulesSource *rules,
                std::string info)
     : io_(io), session_(session), channel_(channel), output_(output), highlighter_(highlighter), rules_(rules),
-      info_(std::move(info)), flushTimer_(io), rulesTimer_(io)
+      info_(std::move(info)), flushTimer_(io), rulesTimer_(io), keepAliveTimer_(io)
 {
 }
 
@@ -48,6 +48,11 @@ bool Bridge::Run(console::InputReader &input)
 
     asio::post(io_, [this] { Pump(); });
     ScheduleRulesCheck();
+    if (keepAliveSec_ > 0)
+    {
+        libssh2_keepalive_config(session_.Raw(), 1, static_cast<unsigned>(keepAliveSec_));
+        ScheduleKeepAlive(keepAliveSec_);
+    }
     io_.run();
     input.Stop();
     io_.restart();
@@ -130,6 +135,21 @@ void Bridge::ScheduleRulesCheck()
         if (rules_->Changed())
             ReloadRules();
         ScheduleRulesCheck();
+    });
+}
+
+void Bridge::ScheduleKeepAlive(int seconds)
+{
+    keepAliveTimer_.expires_after(std::chrono::seconds(seconds > 0 ? seconds : 1));
+    keepAliveTimer_.async_wait([this](const boost::system::error_code &ec) {
+        if (ec || done_)
+            return;
+        int next = keepAliveSec_;
+        // Sends only when the connection was idle for the interval; tells when to call again.
+        if (libssh2_keepalive_send(session_.Raw(), &next) != 0)
+            next = 1; // EAGAIN: try again shortly
+        Pump();   // flush what keepalive queued and keep the socket waits armed
+        ScheduleKeepAlive(next);
     });
 }
 
@@ -268,6 +288,7 @@ void Bridge::Finish(bool ok, std::string error)
     session_.Socket().cancel(ignored);
     flushTimer_.cancel();
     rulesTimer_.cancel();
+    keepAliveTimer_.cancel();
     work_.reset();
     io_.stop();
 }

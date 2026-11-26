@@ -3,6 +3,9 @@
 #include "Version.h"
 
 #include "app/Bridge.h"
+#include "app/ConnectPlan.h"
+#include "config/Profiles.h"
+#include "vault/PasswordVault.h"
 #include "app/RulesSource.h"
 #include "config/HighlightConfig.h"
 #include "console/Console.h"
@@ -58,8 +61,35 @@ std::string Lower(std::string s)
     return s;
 }
 
+// Asks until the user types yes or no. Cancel (Ctrl+C / Ctrl+Z) counts as no.
+bool AskYesNo(const std::string &question)
+{
+    for (;;)
+    {
+        auto answer = console::ReadLine(question, true);
+        if (!answer)
+            return false;
+        const std::string a = Lower(*answer);
+        if (a == "yes")
+            return true;
+        if (a == "no")
+            return false;
+        PrintError("Please type 'yes' or 'no'.\r\n");
+    }
+}
+
+void AddHostKey(ssh::Session &session, const std::string &host, int port, const std::string &path,
+                const std::string &name, const std::string &type)
+{
+    std::string error;
+    if (ssh::AddKnownHost(session.Raw(), host, port, path, &error))
+        PrintError("Warning: Permanently added '" + name + "' (" + type + ") to the list of known hosts.\r\n");
+    else
+        PrintError("Warning: could not save the host key: " + error + "\r\n");
+}
+
 // Returns true when the connection may continue.
-bool VerifyHostKey(ssh::Session &session, const std::string &host, int port)
+bool VerifyHostKey(ssh::Session &session, const std::string &host, int port, config::HostKeyPolicy policy)
 {
     const std::string path = ssh::DefaultKnownHostsPath();
     const auto check = ssh::CheckKnownHost(session.Raw(), host, port, path);
@@ -73,6 +103,20 @@ bool VerifyHostKey(ssh::Session &session, const std::string &host, int port)
         return true;
 
     case ssh::HostKeyStatus::Mismatch:
+        if (policy == config::HostKeyPolicy::WarnOnChange)
+        {
+            // Lab devices get a new host key on every reflash: warn, then let the user decide.
+            PrintError("WARNING: the " + type + " host key for " + name + " has changed.\r\n"
+                       "New key fingerprint: " + fp + "\r\n"
+                       "This is expected after reflashing a device; otherwise it may be an attack.\r\n");
+            if (!AskYesNo("Trust the new key and continue (yes/no)? "))
+            {
+                PrintError("Host key verification failed.\r\n");
+                return false;
+            }
+            AddHostKey(session, host, port, path, name, type);
+            return true;
+        }
         PrintError("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"
                    "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\r\n"
                    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"
@@ -86,31 +130,17 @@ bool VerifyHostKey(ssh::Session &session, const std::string &host, int port)
 
     case ssh::HostKeyStatus::NotFound:
     {
-        PrintError("The authenticity of host '" + name + "' can't be established.\r\n" + type +
-                   " key fingerprint is " + fp + ".\r\n");
-        for (;;)
+        if (policy != config::HostKeyPolicy::AcceptNew)
         {
-            auto answer = console::ReadLine("Are you sure you want to continue connecting (yes/no)? ", true);
-            if (!answer)
+            PrintError("The authenticity of host '" + name + "' can't be established.\r\n" + type +
+                       " key fingerprint is " + fp + ".\r\n");
+            if (!AskYesNo("Are you sure you want to continue connecting (yes/no)? "))
             {
                 PrintError("Host key verification failed.\r\n");
                 return false;
             }
-            const std::string a = Lower(*answer);
-            if (a == "yes")
-                break;
-            if (a == "no")
-            {
-                PrintError("Host key verification failed.\r\n");
-                return false;
-            }
-            PrintError("Please type 'yes' or 'no'.\r\n");
         }
-        std::string error;
-        if (ssh::AddKnownHost(session.Raw(), host, port, path, &error))
-            PrintError("Warning: Permanently added '" + name + "' (" + type + ") to the list of known hosts.\r\n");
-        else
-            PrintError("Warning: could not save the host key: " + error + "\r\n");
+        AddHostKey(session, host, port, path, name, type);
         return true;
     }
 
@@ -134,8 +164,14 @@ int RunConnect(const cli::Options &options)
         return kExitConnectionError;
     }
 
-    const std::string user = options.user.empty() ? LocalUserName() : options.user;
-    const std::string &host = options.host;
+    const auto profiles = config::LoadProfiles(config::ProfilesPath());
+    for (const auto &e : profiles.errors)
+        PrintError("winssh: profiles.json: " + e + "\r\n");
+    const ConnectPlan plan = ResolveConnect(options, profiles.profiles);
+
+    const std::string user = plan.user.empty() ? LocalUserName() : plan.user;
+    const std::string &host = plan.host;
+    const int port = plan.port;
     const std::string target = user + "@" + host;
 
     boost::asio::io_context io;
@@ -162,9 +198,9 @@ int RunConnect(const cli::Options &options)
 
     try
     {
-        session.Connect(host, options.port, std::chrono::seconds(15));
+        session.Connect(host, port, std::chrono::seconds(15));
         sock = static_cast<SOCKET>(session.Socket().native_handle());
-        session.Handshake();
+        session.Handshake(plan.legacyAlgorithms);
     }
     catch (const ssh::Error &e)
     {
@@ -173,21 +209,42 @@ int RunConnect(const cli::Options &options)
         return kExitConnectionError;
     }
 
-    if (!VerifyHostKey(session, host, options.port))
+    if (!VerifyHostKey(session, host, port, plan.hostKeyPolicy))
     {
         stoppedByUser();
         return kExitConnectionError;
     }
 
+    // Saved password (profile with savePassword) from Windows Credential Manager.
+    const vault::PasswordVault vault;
+    std::optional<std::string> stored;
+    if (plan.savePassword && !plan.profileId.empty())
+        stored = vault.Load(plan.profileId);
+
     ssh::AuthOptions auth;
     auth.user = user;
     auth.host = host;
-    auth.identityFile = options.identityFile;
+    auth.identityFile = plan.identityFile;
     if (auth.identityFile.empty())
         auth.keyFiles = ssh::DefaultKeyFiles();
-    const auto result = ssh::Authenticate(
+    auth.storedPassword = stored ? &*stored : nullptr;
+    auto result = ssh::Authenticate(
         session.Raw(), auth, [](const std::string &prompt, bool echo) { return console::ReadLine(prompt, echo); },
         [](const std::string &message) { PrintError(message); });
+    if (stored)
+        vault::Wipe(*stored);
+
+    if (result.ok && plan.savePassword && !plan.profileId.empty() && !result.typedPassword.empty())
+    {
+        std::string error;
+        if (vault.Save(plan.profileId, user, result.typedPassword, &error))
+            PrintError("Password saved in Windows Credential Manager (" + std::string(vault::kDefaultPrefix) +
+                       plan.profileId + ").\r\n");
+        else
+            PrintError("winssh: could not save the password: " + error + "\r\n");
+    }
+    vault::Wipe(result.typedPassword);
+
     if (!result.ok)
     {
         // A cancelled prompt (Ctrl+C or Ctrl+Z) can finish before the Ctrl+C handler thread runs.
@@ -213,15 +270,24 @@ int RunConnect(const cli::Options &options)
         return kExitConnectionError;
     }
 
-    console::SetTitle("WinSSH: " + target);
+    // Remember the connection for the picker and --list.
+    {
+        auto recent = config::LoadHistory(config::HistoryPath());
+        config::RecordRecent(recent, {user, host, port, plan.profileId, config::NowUtcIso()});
+        std::string error;
+        if (!config::SaveHistory(config::HistoryPath(), recent, &error))
+            PrintError("winssh: could not update history: " + error + "\r\n");
+    }
+
+    console::SetTitle("WinSSH: " + (plan.profileId.empty() ? target : plan.displayName));
     console::SetInterruptHandler(nullptr); // raw mode: Ctrl+C is a key for the server, not a signal
     guard.EnableRawInput();
 
     std::unique_ptr<highlight::Highlighter> highlighter;
     std::unique_ptr<RulesSource> rules;
-    if (options.highlight)
+    if (plan.highlight)
     {
-        rules = std::make_unique<RulesSource>(config::HighlightConfigPath(), options.highlightSets);
+        rules = std::make_unique<RulesSource>(config::HighlightConfigPath(), plan.highlightSets);
         auto loaded = rules->Load();
         for (const auto &m : loaded.messages)
             PrintError("winssh: highlight " + m + "\r\n");
@@ -230,7 +296,8 @@ int RunConnect(const cli::Options &options)
     }
 
     const char *cipher = libssh2_session_methods(session.Raw(), LIBSSH2_METHOD_CRYPT_CS);
-    const std::string info = "Connected to " + target + " port " + std::to_string(options.port) + "\r\n" +
+    const std::string info = "Connected to " + target + " port " + std::to_string(port) +
+                             (plan.profileId.empty() ? "" : " (profile " + plan.profileId + ")") + "\r\n" +
                              "Server: " + session.RemoteBanner() + "\r\n" +
                              "Host key: " + KeyTypeLabel(session.HostKeyType()) + " " + session.HostKeyFingerprint() +
                              "\r\n" + "Cipher: " + (cipher ? cipher : "?") + "\r\n" + "Auth: " + result.method +
@@ -239,6 +306,7 @@ int RunConnect(const cli::Options &options)
     console::OutputWriter output;
     console::InputReader input;
     Bridge bridge(io, session, channel, output, highlighter.get(), rules.get(), info);
+    bridge.SetKeepAlive(plan.keepAliveSec);
     const bool ended = bridge.Run(input);
     output.Flush();
     guard.RestoreInput();

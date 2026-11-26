@@ -12,7 +12,10 @@ param(
     [string]$ConfigFixture = "",
     [string]$Config = "Release",
     [int]$Timeout = 20,
-    [string[]]$ExtraArgs = @()
+    [string[]]$ExtraArgs = @(),
+    # Save -Target as profile "e2e" (with -ProfileArgs) and connect by that name instead.
+    [switch]$AsProfile,
+    [string[]]$ProfileArgs = @()
 )
 
 $root = Resolve-Path "$PSScriptRoot\..\.."
@@ -36,7 +39,13 @@ $oldConfig = $env:WINSSH_CONFIG_DIR
 $env:WINSSH_CONFIG_DIR = $configDir
 Push-Location $root
 try {
-    & $driver --timeout $Timeout --log $log --script $scriptPath -- $winssh @ExtraArgs $Target
+    $destination = $Target
+    if ($AsProfile) {
+        & $winssh --save e2e @ProfileArgs $Target | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "winssh --save failed" }
+        $destination = "e2e"
+    }
+    & $driver --timeout $Timeout --log $log --script $scriptPath -- $winssh @ExtraArgs $destination
     $code = $LASTEXITCODE
 }
 finally {

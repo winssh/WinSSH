@@ -1,0 +1,21 @@
+# Connect with a saved profile (M4). run.ps1 saves the target as profile "e2e" first:
+#   .\tests\e2e\run.ps1 -Target fc@10.0.0.111 -Script tests\e2e\profile-session.txt -AsProfile -ProfileArgs '--highlight','default','--keepalive','5'
+send echo READY_$((1+1))\r
+expect READY_2
+
+# Connection info names the profile
+send \x1di
+expect (profile e2e)
+expect Highlighting: on
+
+# Stay idle longer than the keepalive interval; the session must survive it
+sleep 7000
+send echo ALIVE_$((3+4))\r
+expect ALIVE_7
+
+# The tab title is the profile name
+expect-raw \e]0;WinSSH: e2e
+
+send exit 3\r
+expect closed.
+exit 3
