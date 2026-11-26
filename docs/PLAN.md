@@ -430,13 +430,21 @@ Each milestone ends with something runnable.
 ### M1 — Basic SSH session
 
 - [ ] Verify libssh2 on a network switch (legacy algorithms), keyboard-interactive, passphrase key (CB2 done in spike run 2).
-- [ ] Host-key preference: `ssh-ed25519` first, then ECDSA, RSA-SHA2 (match `ssh.exe` and existing `known_hosts`).
+- [x] Host-key preference: `ssh-ed25519` first, then ECDSA, RSA-SHA2; legacy `ssh-rsa` (SHA-1) off by default.
 - [x] CLI parsing: `[user@]host[:port]` (IPv6 in brackets), `-p port`, `-l user`, `-i keyfile`, `-V`, `-h` (done in M0 skeleton).
-- [ ] Auth: password, public key (with passphrase), agent, keyboard-interactive.
-- [ ] Host-key check against `known_hosts`, first-connect prompt with fingerprint.
-- [ ] PTY + shell, raw console input, resize → `window-change`, UTF-8.
-- [ ] Clean exit, remote exit code, console mode restored.
-- [ ] End-to-end test driver: run `WinSSH.exe` inside a ConPTY, send keys, resize, check output and exit code.
+- [x] Auth: agent → key files (`-i` or `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`; passphrase prompt only for keys
+      the server accepts) → keyboard-interactive → password (3 tries). Agent path tested on 2 hosts; password,
+      keyboard-interactive and passphrase keys are implemented but not yet tested against a server.
+- [x] Host-key check against `known_hosts` (same key type only; unparsable lines skipped), first-connect
+      prompt with SHA256 fingerprint, accepted key appended as one line, mismatch refused with a warning.
+      First-connect prompt not yet tested end to end (both test hosts are already known).
+- [x] PTY + shell, raw console input, resize → `window-change`, UTF-8 (no split characters on output).
+- [x] Clean exit, remote exit code (255 on connection/auth errors), console mode restored; Ctrl+C while
+      connecting or at a prompt stops cleanly instead of killing the process.
+- [x] End-to-end test driver `tools/conpty-run` + scripts in `tests/e2e/` (`run.ps1 -Target user@host`).
+      `basic-session.txt` passes on the Ubuntu server and CB2 E13F8: PTY size, resize, UTF-8 both ways,
+      Ctrl+C, `less` (alternate screen), exit code. `password-cancel.txt` and `connect-refused.txt` pass.
+- [ ] Manual check in Windows Terminal: `vim`, `htop`, tab completion, mouse, paste, closing the tab.
 - **Done when:** `vim`, `htop`, `less`, tab completion, `Ctrl+C` all behave like `ssh.exe` in WT.
 
 **M1 design**
@@ -511,6 +519,20 @@ main thread (boost::asio io_context)                 input thread
 - [ ] Send-on-connect commands.
 - [ ] Then pick from backlog (section 8).
 
+### 10.1 Branching and releases (D9)
+
+| Branch | Created from | Merges into | How |
+|---|---|---|---|
+| `feature/*`, `fix/*` | `develop` | `develop` | Pull request, CI green; squash or merge commit |
+| `develop` | — | `main` | At release, **merge commit only** (squashing would make `main` and `develop` diverge) |
+| `hotfix/*` | `main` | `main`, then back into `develop` | Pull request, CI green |
+
+- `main` always equals the latest release. Each release is a tag `vX.Y.Z` on `main`; the release
+  workflow (M5) runs on the tag, not on every push to `main`.
+- Stacked feature branches (one started from another before it merged): after the first PR is
+  squash-merged, rebase the next one with `git rebase --onto develop <old-base-branch>`.
+- Recommended GitHub settings: protect `main` and `develop` (pull requests only, CI must pass).
+
 ### Testing approach
 
 - Unit tests: VT tokenizer, rule engine (overlap, split chunks, UTF-8, SGR restore), config parsing, CLI parsing.
@@ -531,3 +553,4 @@ main thread (boost::asio io_context)                 input thread
 | D6 | Config format | JSON in `%APPDATA%\WinSSH\` | |
 | D7 | Secret storage | Windows Credential Manager | |
 | D8 | License | Repo has MIT; WinSerial is Apache-2.0. Check compatibility if code is copied from WinSerial | |
+| D9 | Branching | `feature/*` → `develop` via PR; `develop` → `main` at release (see 10.1) | 2026-11-26 |

@@ -1,5 +1,6 @@
 // WinSSH entry point.
 #include "Version.h"
+#include "app/Connect.h"
 #include "cli/CommandLine.h"
 #include "util/Utf8.h"
 
@@ -61,9 +62,7 @@ int wmain(int argc, wchar_t *argv[])
         return kExitError;
 
     case winssh::cli::Action::Connect:
-        std::fprintf(stderr, "winssh: connecting to %s%s%s port %d is not implemented yet (M1).\n",
-                     o.user.c_str(), o.user.empty() ? "" : "@", o.host.c_str(), o.port);
-        return kExitError;
+        return winssh::app::RunConnect(o);
     }
     return kExitError;
 }

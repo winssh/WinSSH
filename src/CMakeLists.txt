@@ -1,7 +1,27 @@
 # Core library: everything except main(), so unit tests can link it.
 add_library(winssh_core STATIC
+    app/Bridge.cpp
+    app/Bridge.h
+    app/Connect.cpp
+    app/Connect.h
     cli/CommandLine.cpp
     cli/CommandLine.h
+    console/Console.cpp
+    console/Console.h
+    console/InputReader.cpp
+    console/InputReader.h
+    console/OutputWriter.cpp
+    console/OutputWriter.h
+    ssh/Auth.cpp
+    ssh/Auth.h
+    ssh/KnownHosts.cpp
+    ssh/KnownHosts.h
+    ssh/Session.cpp
+    ssh/Session.h
+    util/Base64.cpp
+    util/Base64.h
+    util/Paths.cpp
+    util/Paths.h
     util/Utf8.cpp
     util/Utf8.h
 )

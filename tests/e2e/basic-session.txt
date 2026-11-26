@@ -1,0 +1,45 @@
+# End-to-end check of an interactive session (M1). Run with tests/e2e/run.ps1.
+# Markers like M_$((1+1)) print "M_2" only when the shell runs the command, so the echoed
+# command line never matches by accident. Works with bash, zsh and busybox sh.
+
+# Shell is ready (typed input waits until the prompt is up)
+send echo READY_$((1+1))\r
+expect READY_2
+
+# PTY size matches the console (conpty-run starts at 80x24)
+send stty size; echo SIZE_$((2+3))\r
+expect 24 80
+expect SIZE_5
+
+# Window resize reaches the server as window-change
+resize 120x40
+sleep 500
+send stty size; echo RESIZED_$((3*3))\r
+expect 40 120
+expect RESIZED_9
+
+# UTF-8 in both directions: printf a check mark, and type a non-ASCII word
+send printf '\342\234\223 %s\n' UTF_$((4+4))\r
+expect ✓ UTF_8
+send echo thiết-bị_$((6+6))\r
+expect thiết-bị_12
+
+# Ctrl+C reaches the remote shell and interrupts a command, WinSSH keeps running
+send sleep 30\r
+sleep 1000
+send \x03
+send echo AFTER_CTRL_C_$((5+5))\r
+expect AFTER_CTRL_C_10
+
+# Full-screen app: alternate screen buffer on and off (less is in Ubuntu and busybox)
+send seq 1 200 | less\r
+expect-raw \e[?1049h
+send q
+expect-raw \e[?1049l
+send echo AFTER_LESS_$((7+7))\r
+expect AFTER_LESS_14
+
+# Remote exit status becomes WinSSH's exit code
+send exit 7\r
+expect closed.
+exit 7
