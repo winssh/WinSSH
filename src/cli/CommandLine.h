@@ -25,25 +25,47 @@ std::optional<Target> ParseTarget(std::string_view text, std::string *error);
 
 enum class Action
 {
-    Picker,      // no destination: show the profile/recent picker (M4)
-    Connect,     // destination given
+    Picker,          // no destination: show the profile/recent picker
+    Connect,         // destination given (host or profile id)
     ShowHelp,
     ShowVersion,
-    CheckRules, // --check-rules
-    TestRules,  // --test-rules <text>
-    InitRules,  // --init-rules
+    CheckRules,      // --check-rules
+    TestRules,       // --test-rules <text>
+    InitRules,       // --init-rules
+    SaveProfile,     // --save <id> destination
+    DeleteProfile,   // --delete <id>
+    ListProfiles,    // --list
+    ImportSshConfig, // --import-ssh-config
 };
 
 struct Options
 {
     Action action = Action::Picker;
-    std::string user;         // empty: decide later (profile, prompt, or local user name)
+
+    // Destination as typed, and whether it may name a profile (no '@', ':' or '[').
+    std::string destination;
+    bool destinationMayBeProfile = false;
+
+    // From the destination and flags (the destination wins, like OpenSSH's user@host over -l).
+    std::string user; // empty: decide later (profile, or local user name)
     std::string host;
     int port = kDefaultPort;
-    std::string identityFile; // -i
-    bool highlight = true;    // --no-highlight turns it off
+
+    // Flags given explicitly; they override a profile's values.
+    std::optional<std::string> userFlag;  // -l
+    std::optional<int> portFlag;          // -p
+    std::string identityFile;             // -i
+    bool highlightSetsGiven = false;      // --highlight
+    std::optional<int> keepAliveSec;      // --keepalive <sec>
+    std::optional<std::string> hostKeyPolicy; // --host-key-policy strict|accept-new|warn-on-change
+    bool legacyAlgorithms = false;        // --legacy-algorithms
+
+    bool highlight = true;                             // --no-highlight turns it off
     std::vector<std::string> highlightSets{"default"}; // --highlight a,b
-    std::string testText;     // --test-rules
+    std::string testText;                              // --test-rules
+
+    std::string profileId;    // --save / --delete
+    bool savePassword = false; // --save-password (with --save)
 };
 
 struct ParseResult

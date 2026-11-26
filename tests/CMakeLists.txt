@@ -6,6 +6,7 @@ add_executable(winssh_tests
     test_console.cpp
     test_escape_keys.cpp
     test_highlight.cpp
+    test_profiles.cpp
     test_rules.cpp
     test_utf8.cpp
 )

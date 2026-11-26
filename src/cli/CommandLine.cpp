@@ -117,17 +117,21 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
 {
     Options o;
     std::optional<std::string> destination;
-    std::optional<int> flagPort;
-    std::string flagUser;
-    std::optional<Action> special; // --check-rules / --test-rules / --init-rules
+    std::optional<Action> special; // actions that do not connect
+    auto setSpecial = [&](Action a) -> bool {
+        if (special)
+            return false;
+        special = a;
+        return true;
+    };
+    const char *kOneAction =
+        "use only one of --check-rules, --test-rules, --init-rules, --save, --delete, --list, --import-ssh-config";
 
     for (size_t i = 0; i < args.size(); ++i)
     {
         const std::string &a = args[i];
         // Next argument as the option's value, or nullptr when missing.
-        auto nextValue = [&]() -> const std::string * {
-            return i + 1 < args.size() ? &args[++i] : nullptr;
-        };
+        auto nextValue = [&]() -> const std::string * { return i + 1 < args.size() ? &args[++i] : nullptr; };
 
         if (a == "-h" || a == "--help")
         {
@@ -144,8 +148,8 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             const std::string *v = nextValue();
             if (!v)
                 return Fail("option -p needs a port number");
-            flagPort = ParsePort(*v);
-            if (!flagPort)
+            o.portFlag = ParsePort(*v);
+            if (!o.portFlag)
                 return Fail("port must be a number from 1 to 65535");
             continue;
         }
@@ -154,7 +158,7 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             const std::string *v = nextValue();
             if (!v || v->empty())
                 return Fail("option -l needs a user name");
-            flagUser = *v;
+            o.userFlag = *v;
             continue;
         }
         if (a == "-i")
@@ -178,24 +182,70 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             o.highlightSets = SplitList(*v);
             if (o.highlightSets.empty())
                 return Fail("option --highlight needs rule set names, e.g. default,journal");
+            o.highlightSetsGiven = true;
             continue;
         }
-        if (a == "--check-rules" || a == "--init-rules")
+        if (a == "--keepalive")
         {
-            if (special)
-                return Fail("use only one of --check-rules, --test-rules, --init-rules");
-            special = a == "--check-rules" ? Action::CheckRules : Action::InitRules;
+            const std::string *v = nextValue();
+            int sec = -1;
+            if (v)
+            {
+                auto [ptr, ec] = std::from_chars(v->data(), v->data() + v->size(), sec);
+                if (ec != std::errc() || ptr != v->data() + v->size())
+                    sec = -1;
+            }
+            if (sec < 0 || sec > 3600)
+                return Fail("option --keepalive needs seconds from 0 (off) to 3600");
+            o.keepAliveSec = sec;
+            continue;
+        }
+        if (a == "--host-key-policy")
+        {
+            const std::string *v = nextValue();
+            if (!v || (*v != "strict" && *v != "accept-new" && *v != "warn-on-change"))
+                return Fail("option --host-key-policy needs strict, accept-new or warn-on-change");
+            o.hostKeyPolicy = *v;
+            continue;
+        }
+        if (a == "--legacy-algorithms")
+        {
+            o.legacyAlgorithms = true;
+            continue;
+        }
+        if (a == "--check-rules" || a == "--init-rules" || a == "--list" || a == "--import-ssh-config")
+        {
+            const Action act = a == "--check-rules" ? Action::CheckRules
+                               : a == "--init-rules" ? Action::InitRules
+                               : a == "--list"       ? Action::ListProfiles
+                                                     : Action::ImportSshConfig;
+            if (!setSpecial(act))
+                return Fail(kOneAction);
             continue;
         }
         if (a == "--test-rules")
         {
-            if (special)
-                return Fail("use only one of --check-rules, --test-rules, --init-rules");
+            if (!setSpecial(Action::TestRules))
+                return Fail(kOneAction);
             const std::string *v = nextValue();
             if (!v)
                 return Fail("option --test-rules needs a text, e.g. --test-rules \"link down at 10.0.0.1\"");
-            special = Action::TestRules;
             o.testText = *v;
+            continue;
+        }
+        if (a == "--save" || a == "--delete")
+        {
+            if (!setSpecial(a == "--save" ? Action::SaveProfile : Action::DeleteProfile))
+                return Fail(kOneAction);
+            const std::string *v = nextValue();
+            if (!v || v->empty() || (*v)[0] == '-')
+                return Fail("option " + a + " needs a profile id, e.g. " + a + " cb2-lab");
+            o.profileId = *v;
+            continue;
+        }
+        if (a == "--save-password")
+        {
+            o.savePassword = true;
             continue;
         }
         if (!a.empty() && a.front() == '-')
@@ -206,17 +256,22 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
         destination = a;
     }
 
-    if (special)
+    if (o.savePassword && special != Action::SaveProfile)
+        return Fail("--save-password is only used with --save");
+
+    if (special && *special != Action::SaveProfile)
     {
         if (destination)
-            return Fail("--check-rules, --test-rules and --init-rules do not take a destination");
+            return Fail("this option does not take a destination");
         o.action = *special;
         return {true, o, {}};
     }
 
     if (!destination)
     {
-        if (flagPort || !flagUser.empty() || !o.identityFile.empty())
+        if (special == Action::SaveProfile)
+            return Fail("--save needs a destination, e.g. --save cb2-lab root@10.0.0.108");
+        if (o.portFlag || o.userFlag || !o.identityFile.empty())
             return Fail("options -p, -l and -i need a destination");
         o.action = Action::Picker;
         return {true, o, {}};
@@ -227,11 +282,17 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
     if (!target)
         return Fail("invalid destination '" + *destination + "': " + error);
 
-    // Values in the destination win over flags, like OpenSSH's user@host over -l.
-    o.action = Action::Connect;
+    o.action = special ? *special : Action::Connect;
+    o.destination = *destination;
+    o.destinationMayBeProfile = destination->find_first_of("@:[") == std::string::npos;
     o.host = target->host;
-    o.user = !target->user.empty() ? target->user : flagUser;
-    o.port = target->port ? *target->port : flagPort.value_or(kDefaultPort);
+    o.user = !target->user.empty() ? target->user : o.userFlag.value_or("");
+    o.port = target->port ? *target->port : o.portFlag.value_or(kDefaultPort);
+    // Values typed in the destination count as explicit too.
+    if (!target->user.empty())
+        o.userFlag = target->user;
+    if (target->port)
+        o.portFlag = target->port;
     return {true, o, {}};
 }
 
@@ -240,15 +301,25 @@ std::string UsageText()
     return "Usage:\n"
            "  winssh                          Open the connection picker\n"
            "  winssh [options] [user@]host[:port]\n"
+           "  winssh [options] <profile>      Connect with a saved profile\n"
            "\n"
-           "Options:\n"
-           "  -p <port>       Port (default 22)\n"
-           "  -l <user>       User name\n"
-           "  -i <keyfile>    Private key file\n"
-           "  --highlight <sets>   Rule sets to use, comma separated (default: default)\n"
-           "  --no-highlight  Turn off keyword highlighting\n"
-           "  -V, --version   Show version\n"
-           "  -h, --help      Show this help\n"
+           "Connection options:\n"
+           "  -p <port>               Port (default 22)\n"
+           "  -l <user>               User name\n"
+           "  -i <keyfile>            Private key file\n"
+           "  --highlight <sets>      Highlight rule sets, comma separated (default: default)\n"
+           "  --no-highlight          Turn off keyword highlighting\n"
+           "  --keepalive <sec>       Send a keepalive every <sec> seconds (0 = off)\n"
+           "  --host-key-policy <p>   strict (default), accept-new, or warn-on-change\n"
+           "  --legacy-algorithms     Allow ssh-rsa and SHA-1 key exchange (old devices)\n"
+           "  -V, --version           Show version\n"
+           "  -h, --help              Show this help\n"
+           "\n"
+           "Profiles (%APPDATA%\\WinSSH\\profiles.json):\n"
+           "  winssh --save <id> [options] [user@]host[:port] [--save-password]\n"
+           "  winssh --list                   List profiles and recent connections\n"
+           "  winssh --delete <id>            Delete a profile and its saved password\n"
+           "  winssh --import-ssh-config      Add profiles from ~/.ssh/config Host entries\n"
            "\n"
            "Highlight rules (%APPDATA%\\WinSSH\\highlight.json):\n"
            "  winssh --init-rules             Create a starter rules file\n"

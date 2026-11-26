@@ -54,6 +54,9 @@ public:
     const std::string &Error() const { return error_; }
     bool UserExited() const { return userExit_; }
 
+    // Sends an SSH keepalive every `seconds` (0 = off). Call before Run().
+    void SetKeepAlive(int seconds) { keepAliveSec_ = seconds; }
+
     // Time to wait for more output before showing a held-back partial line.
     static constexpr std::chrono::milliseconds kFlushDelay{10};
     // How often the rules file is checked for changes.
@@ -69,6 +72,7 @@ private:
     void WriteLocal(const std::string &text);
     void FlushHighlighter();
     void ScheduleRulesCheck();
+    void ScheduleKeepAlive(int seconds);
     void ReloadRules();
 
     boost::asio::io_context &io_;
@@ -81,6 +85,8 @@ private:
     EscapeKeys escape_;
     boost::asio::steady_timer flushTimer_;
     boost::asio::steady_timer rulesTimer_;
+    boost::asio::steady_timer keepAliveTimer_;
+    int keepAliveSec_ = 0;
     std::optional<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_;
 
     std::string pendingInput_;

@@ -4,8 +4,12 @@ add_library(winssh_core STATIC
     app/Bridge.h
     app/Connect.cpp
     app/Connect.h
+    app/ConnectPlan.cpp
+    app/ConnectPlan.h
     app/EscapeKeys.cpp
     app/EscapeKeys.h
+    app/ProfileCommands.cpp
+    app/ProfileCommands.h
     app/RulesCommands.cpp
     app/RulesCommands.h
     app/RulesSource.cpp
@@ -14,6 +18,12 @@ add_library(winssh_core STATIC
     cli/CommandLine.h
     config/HighlightConfig.cpp
     config/HighlightConfig.h
+    config/JsonFile.cpp
+    config/JsonFile.h
+    config/Profiles.cpp
+    config/Profiles.h
+    config/SshConfigImport.cpp
+    config/SshConfigImport.h
     console/Console.cpp
     console/Console.h
     console/InputReader.cpp
@@ -38,6 +48,8 @@ add_library(winssh_core STATIC
     util/Paths.h
     util/Utf8.cpp
     util/Utf8.h
+    vault/PasswordVault.cpp
+    vault/PasswordVault.h
 )
 target_include_directories(winssh_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}"

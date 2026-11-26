@@ -28,12 +28,16 @@ void EnsureLibssh2Init()
 }
 } // namespace
 
-std::string HostKeyPreference(LIBSSH2_SESSION *session)
+std::string HostKeyPreference(LIBSSH2_SESSION *session, bool legacy)
 {
-    static const char *kPreferred[] = {
+    static const char *kModern[] = {
         "ssh-ed25519",        "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384",
         "ecdsa-sha2-nistp521", "rsa-sha2-512",        "rsa-sha2-256",
     };
+    static const char *kLegacy[] = {"ssh-rsa", "ssh-dss"};
+    std::vector<const char *> kPreferred(std::begin(kModern), std::end(kModern));
+    if (legacy)
+        kPreferred.insert(kPreferred.end(), std::begin(kLegacy), std::end(kLegacy));
     const char **algs = nullptr;
     const int n = libssh2_session_supported_algs(session, LIBSSH2_METHOD_HOSTKEY, &algs);
     std::string pref;
@@ -105,13 +109,36 @@ void Session::Connect(const std::string &host, int port, std::chrono::seconds ti
     socket_.set_option(tcp::no_delay(true), ec); // interactive keystrokes
 }
 
-void Session::Handshake()
+static std::string AllSupported(LIBSSH2_SESSION *session, int method)
+{
+    const char **algs = nullptr;
+    const int n = libssh2_session_supported_algs(session, method, &algs);
+    std::string list;
+    for (int i = 0; i < n; ++i)
+        list += (list.empty() ? "" : ",") + std::string(algs[i]);
+    if (n > 0)
+        libssh2_free(session, algs);
+    return list;
+}
+
+void Session::Handshake(bool legacyAlgorithms)
 {
     libssh2_session_set_blocking(session_, 1);
     libssh2_session_set_timeout(session_, 30000);
-    const std::string pref = HostKeyPreference(session_);
+    const std::string pref = HostKeyPreference(session_, legacyAlgorithms);
     if (!pref.empty())
         libssh2_session_method_pref(session_, LIBSSH2_METHOD_HOSTKEY, pref.c_str());
+    if (legacyAlgorithms)
+    {
+        // Offer everything libssh2 supports (SHA-1 key exchange, CBC ciphers) after the modern ones.
+        for (int method : {LIBSSH2_METHOD_KEX, LIBSSH2_METHOD_CRYPT_CS, LIBSSH2_METHOD_CRYPT_SC,
+                           LIBSSH2_METHOD_MAC_CS, LIBSSH2_METHOD_MAC_SC})
+        {
+            const std::string all = AllSupported(session_, method);
+            if (!all.empty())
+                libssh2_session_method_pref(session_, method, all.c_str());
+        }
+    }
     if (libssh2_session_handshake(session_, static_cast<libssh2_socket_t>(socket_.native_handle())) != 0)
         throw Error("SSH handshake failed: " + LastError());
 }
