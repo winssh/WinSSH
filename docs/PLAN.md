@@ -1,0 +1,455 @@
+# WinSSH — Plan
+
+**SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
+
+Status: draft. D1, D3, D4 decided; D2 and D5 pending (see section 11).
+
+---
+
+## 1. Goals
+
+| # | Goal | Source |
+|---|---|---|
+| G1 | Open an interactive SSH session (shell with a PTY) | Initial idea |
+| G2 | Runs on Windows 10 1809+ / Windows 11 | Initial idea |
+| G3 | Opens as a tab in Windows Terminal (like WinSerial) | Initial idea |
+| G4 | Keyword highlighting on the output stream | Initial idea |
+| G5 | User-defined highlight rules (keywords, regex, colors) | New |
+| G6 | Connection history and saved connection profiles | New |
+
+### Non-goals (v1)
+
+- Being a terminal emulator. Windows Terminal renders; WinSSH only sits between the keyboard, the SSH channel, and the console.
+- SFTP / SCP file transfer, X11 forwarding, a GUI session manager window.
+- Running on Linux/macOS.
+
+### Why build this instead of `ssh user@host` in Windows Terminal
+
+Plain `ssh.exe` in Windows Terminal already works. WinSSH adds what it lacks:
+highlighted output, saved profiles with stored credentials, one WT tab per profile,
+and (later) session logging and auto-reconnect.
+
+---
+
+## 2. What we take from WinSerial
+
+Repo: `C:\Users\BS\work\repos\WinSerial` (single `WinSerial.cpp`, ~830 lines).
+
+| WinSerial piece | Reuse in WinSSH? | Notes |
+|---|---|---|
+| C++17 + CMake + vcpkg + MSVC, `Version.h.in` from git hash | Yes | Same toolchain, same CI shape |
+| `boost::asio` async read/write loop between console and stream | Yes, rework | SSH channel replaces `serial_port` |
+| Console setup (`ENABLE_VIRTUAL_TERMINAL_INPUT/PROCESSING`) | Yes | Plus raw input (no line/echo processing) |
+| `ColorizeString()` — 4 hardcoded `std::regex` passes | Replace | See section 4; current approach can corrupt escape sequences and is slow |
+| Line buffer + 50 ms debounce before printing | Replace | Fine for serial logs, adds visible lag to interactive shells |
+| `Ctrl+A` command-mode hotkeys | Change key | `Ctrl+A` is "start of line" in bash and the tmux/screen prefix — collides on SSH |
+| Local echo / line-edit mode | Drop | Remote PTY does echo and line editing |
+| Settings in Registry (`HKCU`) | Replace | JSON files in `%APPDATA%\WinSSH\` (editable, easy to back up) |
+| Win32 settings dialog | Optional | See section 6.3 |
+| Inno Setup installer, portable zip, GitHub Actions release | Yes | Same pipeline |
+| `Add-TerminalProfile.ps1` (regex-edits WT `settings.json`) | Replace | Use WT JSON fragments (section 7) |
+
+Note: WinSerial has an uncommitted, staged SSH experiment (libssh2 + `implementation_plan.md`).
+Useful as a reference for the libssh2 stream wrapper idea; it stores the SSH password in the
+Registry in plain text, which WinSSH must not do.
+
+---
+
+## 3. Architecture
+
+### 3.1 Two ways to talk SSH — decided: Option A (D1)
+
+**Option A — In-process SSH library (libssh or libssh2)**
+
+```
+Windows Terminal tab
+  └─ WinSSH.exe
+       console input (VT) ──► input handler (hotkeys) ──► SSH channel (PTY)
+       console output ◄── highlighter ◄────────────────── SSH channel
+```
+
+- \+ Full control: password / keyboard-interactive prompts, host-key prompt, reconnect, keepalive.
+- \+ Highlighter sees the exact bytes from the server.
+- \+ Passwords come straight from Windows Credential Manager.
+- − We own more: `known_hosts`, key formats, agent support, algorithm negotiation for old devices.
+
+**Option B — Wrap the built-in OpenSSH client (`ssh.exe`) in a ConPTY**
+
+```
+Windows Terminal tab
+  └─ WinSSH.exe ──ConPTY──► ssh.exe user@host
+       console output ◄── highlighter ◄── ConPTY output
+```
+
+- \+ Every OpenSSH feature for free: `~/.ssh/config`, ProxyJump, agent, certificates, port forwarding.
+- \+ Least security-sensitive code on our side.
+- − Two ConPTY layers (WT + ours): output is re-rendered once more; risk of redraw glitches in full-screen apps.
+- − Saved passwords need `SSH_ASKPASS` + `SSH_ASKPASS_REQUIRE=force` with WinSSH as the askpass helper (needs a spike: support depends on the Win32-OpenSSH version).
+- − Host-key and auth prompts are ssh.exe's text, not ours.
+
+**Decision (D1):** Option A. The app's value is highlighting and profiles; both are cleaner when
+we own the byte stream and the auth flow. The M0 spike picks the library (D2). Option B stays as
+the fallback only if neither library can handle our real targets.
+
+### 3.2 libssh vs libssh2 (D2, decided by the M0 spike)
+
+Check each against real targets (CB2 dev unit, a Linux server, a network switch if available):
+
+| Check | libssh | libssh2 |
+|---|---|---|
+| ed25519 / ECDSA / RSA-SHA2 keys | | |
+| OpenSSH-format private keys, passphrase | | |
+| Windows OpenSSH agent (`\\.\pipe\openssh-ssh-agent`) and Pageant | | |
+| keyboard-interactive auth | | |
+| `known_hosts` read/write | | |
+| Parse `~/.ssh/config` | | |
+| Legacy algorithms (old switches: `ssh-rsa`, `diffie-hellman-group14-sha1`) | | |
+| Non-blocking API that fits `boost::asio` | | |
+| vcpkg port, license (static link OK?) | | |
+
+### 3.3 Module layout (no more single 800-line file)
+
+```
+src/
+  main.cpp              CLI parsing, top-level flow
+  console/              raw VT console in/out, resize events, title
+  ssh/                  session, auth, channel, host-key check, keepalive
+  highlight/            VT-aware tokenizer, rule engine, built-in rule sets
+  config/               settings, profiles, history, highlight rules (JSON load/save, validation)
+  credentials/          Windows Credential Manager wrapper
+  hotkeys/              escape-key command mode
+  wt/                   Windows Terminal fragment generator
+tests/                  unit tests (highlighter, config, CLI parsing)
+installer/              Inno Setup script
+```
+
+Later option: move `console/`, `highlight/`, `hotkeys/`, `wt/` into a small shared library and
+let WinSerial use it too.
+
+### 3.4 Session I/O details that are easy to get wrong
+
+- **Raw input:** turn off `ENABLE_LINE_INPUT`, `ENABLE_ECHO_INPUT`, `ENABLE_PROCESSED_INPUT`; keep
+  `ENABLE_VIRTUAL_TERMINAL_INPUT` so arrow keys, function keys, and mouse come in as VT sequences and
+  go to the server unchanged. `Ctrl+C` must go to the remote side, not kill WinSSH.
+- **Window resize:** read `WINDOW_BUFFER_SIZE_EVENT` and send an SSH `window-change` request,
+  otherwise `vim`, `htop`, `less` draw wrong after the tab is resized.
+- **PTY request:** `xterm-256color`, current size, `LANG` if the server accepts it.
+- **UTF-8:** set console code page to UTF-8; never split a multi-byte character when highlighting.
+- **Exit:** return the remote exit status as the process exit code. With WT `closeOnExit: "graceful"`
+  the tab closes on a clean `exit` and stays open on errors.
+- **Restore** the original console mode on any exit path.
+
+---
+
+## 4. Keyword highlighting
+
+### 4.1 Problems in the WinSerial approach
+
+1. `std::regex_replace` runs on raw bytes, so a rule can match inside an existing escape sequence
+   (e.g. `ESC[0;32m`) or inside a word already colored by an earlier pass, and break it.
+2. It resets to default color after a match (`ESC[0m`), wiping the server's own colors (e.g. `ls --color`).
+3. `std::regex` is slow and can overflow the stack on long lines.
+4. Line buffering + 50 ms debounce adds lag to every keystroke echo.
+5. Highlighting inside full-screen apps (`vim`, `htop`) corrupts their screen.
+
+### 4.2 Design
+
+- **VT-aware scan:** split the stream into escape sequences (pass through untouched) and text runs
+  (eligible for highlighting).
+- **Single pass, all rules at once:** compile rules into one matcher; on overlap, the earlier rule
+  (higher priority) wins. Engine candidates: PCRE2 (JIT) or RE2 — pick in M2.
+- **Save and restore color:** after a match, restore the server's current SGR state, not plain reset.
+- **No lag:** write text right away. Only hold back a trailing partial word (bounded, e.g. ≤ 64 bytes
+  or ≤ 10 ms) so a keyword split across two reads still matches.
+- **Auto-off in full-screen apps:** pause highlighting while the alternate screen buffer is active
+  (`ESC[?1049h` … `ESC[?1049l`).
+- **Toggle at runtime** via hotkey.
+
+### 4.3 User-defined rules (G5)
+
+File: `%APPDATA%\WinSSH\highlight.json` (hot-reloaded on change). Example:
+
+```json
+{
+  "ruleSets": {
+    "default": [
+      { "name": "errors",  "keywords": ["error", "failed", "fault", "denied"], "style": { "fg": "red", "bold": true } },
+      { "name": "ok",      "keywords": ["ok", "success", "connected"],         "style": { "fg": "green" } },
+      { "name": "ipv4",    "regex": "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b",          "style": { "fg": "yellow" } },
+      { "name": "mac",     "regex": "\\b(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}\\b",   "style": { "fg": "yellow" } }
+    ],
+    "cb2-logs": [
+      { "name": "fc-services", "regex": "\\bfc-[a-z]+\\b", "style": { "fg": "cyan" } },
+      { "name": "journal-err", "regex": "\\b(ERR|CRIT|ALERT|EMERG)\\b", "caseSensitive": true, "style": { "fg": "white", "bg": "red" } }
+    ]
+  }
+}
+```
+
+- Rule fields: `name`, `keywords` (whole-word, list) **or** `regex`, `caseSensitive` (default `false`),
+  `style` (`fg`, `bg`: 16 named colors, `#rrggbb`, or 0–255; `bold`, `underline`, `italic`), `enabled`.
+- A profile picks one or more rule sets (`"highlight": ["default", "cb2-logs"]`).
+- Built-in `default` set = WinSerial's current keyword list, so behavior matches out of the box.
+- `winssh --check-rules` validates the file and prints each rule's sample output in color.
+- Bad rule → warning on start, that rule is skipped, session still opens.
+
+---
+
+## 5. Profiles and history (G6)
+
+### 5.1 Storage
+
+| Data | Where |
+|---|---|
+| Profiles, settings | `%APPDATA%\WinSSH\profiles.json`, `settings.json` |
+| Recent connections (MRU, last N=20) | `%APPDATA%\WinSSH\history.json` |
+| Passwords / key passphrases | **Windows Credential Manager** (`CredWriteW`, target `WinSSH:<profile-id>`), never in JSON |
+| Host keys | `%USERPROFILE%\.ssh\known_hosts` (shared with OpenSSH) |
+| Session logs | `%LOCALAPPDATA%\WinSSH\logs\` |
+
+### 5.2 Profile fields
+
+```json
+{
+  "id": "cb2-lab",
+  "name": "CB2 lab unit",
+  "host": "192.168.1.50",
+  "port": 22,
+  "user": "root",
+  "auth": "password | key | agent | keyboard-interactive",
+  "identityFile": "~/.ssh/id_ed25519",
+  "savePassword": true,
+  "highlight": ["default", "cb2-logs"],
+  "keepAliveSec": 30,
+  "autoReconnect": true,
+  "log": { "enabled": false, "timestamps": true, "stripAnsi": true },
+  "hostKeyPolicy": "strict | accept-new | warn-on-change",
+  "algorithms": { "hostKey": "+ssh-rsa" },
+  "wtTab": { "color": "#2d7d46", "icon": null }
+}
+```
+
+`hostKeyPolicy: warn-on-change` is for lab devices whose host key changes after every reflash;
+default stays `strict`.
+
+### 5.3 How the user picks a connection
+
+```
+winssh                         → TUI picker (profiles + recent), see 6.3
+winssh user@host[:port]        → quick connect, added to history
+winssh -p cb2-lab              → open a profile
+winssh --save cb2-lab user@host → create profile from args
+winssh --list                  → list profiles
+winssh --import-ssh-config     → turn Host entries from ~/.ssh/config into profiles
+```
+
+---
+
+## 6. UX
+
+### 6.1 Escape key (command mode) — decided: `Ctrl+]` (D3)
+
+`Ctrl+A` (WinSerial) collides with shells and tmux/screen. Default is `Ctrl+]` (like telnet),
+configurable in `settings.json`. Optionally also support OpenSSH's `~.` style escapes after Enter (backlog).
+
+| Keys | Action |
+|---|---|
+| `Ctrl+]`, `h` | Help |
+| `Ctrl+]`, `f` | Toggle highlighting |
+| `Ctrl+]`, `l` | Toggle session log to file |
+| `Ctrl+]`, `t` | Toggle timestamp prefix on lines |
+| `Ctrl+]`, `r` | Reconnect now |
+| `Ctrl+]`, `i` | Connection info (host, cipher, host-key fingerprint, uptime) |
+| `Ctrl+]`, `x` | Disconnect and exit |
+| `Ctrl+]`, `Ctrl+]` | Send a literal `Ctrl+]` |
+
+### 6.2 Connection status line
+
+Print short colored status lines, not dialogs: `Connecting to cb2-lab (192.168.1.50:22)…`,
+`Connection lost — reconnecting in 3 s (attempt 2)…`, `Press Ctrl+] h for help`.
+Set the tab title to `WinSSH: <profile or user@host>`.
+
+### 6.3 Picker UI — decided: TUI picker + Win32 profile dialog (D4)
+
+**Flow**
+
+```
+New WT tab (profile "WinSSH")
+  └─ TUI picker: Profiles + Recent + filter
+       ├─ Enter on a profile / recent  → connect
+       ├─ type user@host + Enter       → quick connect (added to Recent)
+       ├─ n / e / s                    → Win32 dialog (new / edit / save recent as profile)
+       │     ├─ Save & Connect → connect
+       │     ├─ Save           → back to TUI (list updated)
+       │     └─ Esc / Cancel   → back to TUI
+       ├─ d                            → delete profile (confirm y/N)
+       └─ Esc                          → exit
+```
+
+**TUI picker** — drawn inside the tab with VT sequences (like `fzf`):
+
+```
+ WinSSH — select a connection                      Filter: cb2_
+
+  PROFILES
+  > CB2 lab unit          root@192.168.1.50:22      [cb2-logs]
+    CB2 test rig (HIL)    root@10.0.0.21:22         [cb2-logs]
+
+  RECENT
+    hai@build-server      2 hours ago
+    admin@192.168.1.1     yesterday
+
+  ↑/↓ move  Enter connect  type to filter  n new  e edit  s save recent  d delete  Esc quit
+```
+
+- Type-to-filter matches profile name, host, and user.
+- Filter text that looks like `user@host[:port]` + Enter → quick connect, no dialog.
+- Screen is cleared before the SSH session starts.
+- Handles resize while open.
+
+**Win32 profile dialog** — only for creating/editing profiles (many fields):
+
+- Fields: name, host, port, user, auth type, identity file (with Browse…), "Save password" checkbox +
+  password field, highlight rule sets, keepalive, auto-reconnect, host-key policy.
+- Buttons: **Connect** (no save), **Save**, **Save & Connect**. Enter = Save & Connect, Esc = Cancel.
+- Fully keyboard-driven (Tab order, mnemonics).
+- `e` on a profile and `s` on a recent entry open the same dialog, pre-filled.
+- Password is written to Credential Manager only; unchecking "Save password" deletes the stored one.
+- **Owner and focus:** under Windows Terminal, `GetConsoleWindow()` returns a hidden pseudo window,
+  so WinSerial's `CenterParentWindow` would center on the wrong window. Capture `GetForegroundWindow()`
+  at startup (the WT window), use it as owner, center on it, bring the dialog to the foreground, and
+  give focus back to WT when it closes.
+
+Password (when not saved) and host-key prompts are always in the terminal, not in the dialog.
+
+---
+
+## 7. Windows Terminal integration (G3)
+
+Use **WT JSON fragments** instead of editing `settings.json` with regex:
+
+- Write `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\WinSSH\winssh.json`.
+- One base profile `WinSSH` (opens the picker), plus **one WT profile per saved WinSSH profile**
+  (`commandline: "winssh.exe -p cb2-lab"`) so each device shows up in the WT dropdown and in
+  `wt -p "WinSSH: cb2-lab"`.
+- WinSSH rewrites the fragment whenever profiles change. Uninstall deletes the folder.
+- WT reads fragments on start; user's own `settings.json` is never touched.
+- Use stable GUIDs per profile (derive from profile id) so WT keeps user overrides across rewrites.
+
+---
+
+## 8. More ideas (backlog, not v1)
+
+Most useful for embedded / lab work first:
+
+1. **Auto-reconnect** when the device reboots (after a flash or SWU update): wait, retry with backoff,
+   reattach in the same tab.
+2. **Session log to file** with optional timestamps and ANSI stripped — easy to attach to a Jira ticket.
+3. **Timestamp prefix** on each output line (toggle).
+4. **Send-on-connect commands** per profile (e.g. `journalctl -f -u fc-transaction`).
+5. **Jump host / ProxyJump.**
+6. **Local port forwarding** (`-L`), e.g. to reach the CB2 local portal (`fc-portal`).
+7. **Broadcast input** to several sessions (multi-device test) — probably needs a different design.
+8. **Search/filter mode** (pause output and show only lines matching a rule).
+9. Shared core library with WinSerial; maybe WinSerial later reads the same `highlight.json`.
+
+---
+
+## 9. Security checklist
+
+- No password, passphrase, or key material in JSON, Registry, logs, or command-line args.
+- Credential Manager for secrets; user can opt out of saving.
+- Host-key verification on by default; show fingerprint (SHA256) on first connect.
+- Session logs may contain secrets typed at prompts → logging off by default; warn when turned on.
+- Wipe password buffers after use (`SecureZeroMemory`).
+- Signed releases later (code signing cert) to avoid SmartScreen warnings.
+
+---
+
+## 10. Implementation plan
+
+Each milestone ends with something runnable.
+
+### M0 — Spike and skeleton (decisions locked)
+
+- [ ] Spike: connect to 3 real targets with libssh and libssh2 (table 3.2); fall back to Option B
+      only if both fail on a target.
+- [ ] Decide D2 (library) from the spike results and record it in section 11.
+- [ ] Repo skeleton: CMake + vcpkg manifest, `src/` layout, `Version.h.in`, icon, `.gitignore`.
+- [ ] Unit test framework (Catch2 or GoogleTest) wired into CTest.
+- [ ] GitHub Actions: build Release on `windows-latest`, run tests.
+
+### M1 — Basic SSH session
+
+- [ ] CLI: `winssh user@host[:port]`, `-i keyfile`, `-l user`, `--version`, `--help`.
+- [ ] Auth: password, public key (with passphrase), agent, keyboard-interactive.
+- [ ] Host-key check against `known_hosts`, first-connect prompt with fingerprint.
+- [ ] PTY + shell, raw console input, resize → `window-change`, UTF-8.
+- [ ] Clean exit, remote exit code, console mode restored.
+- **Done when:** `vim`, `htop`, `less`, tab completion, `Ctrl+C` all behave like `ssh.exe` in WT.
+
+### M2 — Highlighting engine
+
+- [ ] VT tokenizer (text vs escape sequences) + tests with captured real output.
+- [ ] Rule engine: single pass, priority, SGR save/restore, partial-word hold-back.
+- [ ] Alternate-screen auto-pause.
+- [ ] Built-in `default` rule set (port WinSerial keywords).
+- [ ] Escape key command mode: help, toggle highlight, exit.
+- **Done when:** highlighted output never breaks server colors or full-screen apps; no visible typing lag.
+
+### M3 — Custom highlight rules (G5)
+
+- [ ] `highlight.json` schema, loader, validation, error messages.
+- [ ] Hot reload on file change.
+- [ ] Named rule sets, per-session selection (`--highlight default,cb2-logs`).
+- [ ] `winssh --check-rules` preview.
+- [ ] Docs: rule format with examples.
+
+### M4 — Profiles and history (G6)
+
+- [ ] `profiles.json`, `history.json`, `settings.json` load/save with schema version.
+- [ ] Credential Manager wrapper (save / read / delete password per profile).
+- [ ] CLI: `-p`, `--save`, `--list`, `--import-ssh-config`.
+- [ ] TUI picker: Profiles + Recent sections, type-to-filter, keys `Enter`/`n`/`e`/`s`/`d`/`Esc`, resize.
+- [ ] Quick connect from the filter box (`user@host[:port]` + Enter), added to Recent.
+- [ ] Win32 profile dialog: fields, Browse for key file, Connect / Save / Save & Connect, keyboard-only use.
+- [ ] Dialog owner/centering/focus under Windows Terminal (`GetForegroundWindow()` captured at start).
+- [ ] Delete profile with confirm; also removes its Credential Manager entry.
+- [ ] Per-profile options: highlight sets, keepalive, host-key policy, legacy algorithms.
+- **Done when:** a new WinSSH tab → pick or create a profile → connected, without touching the mouse.
+
+### M5 — Windows Terminal integration and release (G3)
+
+- [ ] Fragment generator: base profile + one per saved profile; rewrite on change.
+- [ ] Tab title.
+- [ ] Inno Setup installer (PATH, fragment, Start Menu), portable zip.
+- [ ] Release workflow: tag `vX.Y.Z` → build, test, attach installer + zip.
+- [ ] README with screenshots/GIF.
+
+### M6 — Lab-work extras
+
+- [ ] Keepalive + auto-reconnect with backoff.
+- [ ] Session logging (+ hotkey), timestamp prefix.
+- [ ] Send-on-connect commands.
+- [ ] Then pick from backlog (section 8).
+
+### Testing approach
+
+- Unit tests: VT tokenizer, rule engine (overlap, split chunks, UTF-8, SGR restore), config parsing, CLI parsing.
+- Integration: local OpenSSH server (Windows optional feature or a Linux container/VM) with password and key users; scripted connect/run/exit.
+- Manual checklist per release: `vim`, `htop`, `tmux`, resize, long `dmesg`/`journalctl` output, real CB2 unit, reconnect after reboot.
+
+---
+
+## 11. Decisions log
+
+| # | Topic | Decision | Date |
+|---|---|---|---|
+| D1 | In-process library (A) vs wrap `ssh.exe` (B) | **A** — in-process library; B only as fallback | 2026-11-26 |
+| D2 | libssh vs libssh2 | Pending M0 spike (table 3.2) | |
+| D3 | Escape key | **`Ctrl+]`**, configurable | 2026-11-26 |
+| D4 | Picker UI | **TUI picker** for choosing; **Win32 dialog** only for new/edit profile (section 6.3) | 2026-11-26 |
+| D5 | Regex engine: PCRE2 vs RE2 | Pending M2 | |
+| D6 | Config format | JSON in `%APPDATA%\WinSSH\` | |
+| D7 | Secret storage | Windows Credential Manager | |
+| D8 | License | Repo has MIT; WinSerial is Apache-2.0. Check compatibility if code is copied from WinSerial | |
