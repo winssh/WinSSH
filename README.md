@@ -4,10 +4,11 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-> Status: early development (milestone M0, project skeleton). It cannot connect yet.
+> Status: early development (milestone M1). Interactive SSH sessions work (key/agent, password,
+> keyboard-interactive); highlighting, profiles and Windows Terminal integration come next.
 > See [docs/PLAN.md](docs/PLAN.md) for goals, design and milestones.
 
-## Usage (planned)
+## Usage
 
 ```text
 winssh                          Open the connection picker
@@ -44,17 +45,30 @@ so `WinSSH.exe` runs without extra DLLs.
 
 ```text
 src/
-  main.cpp        entry point
-  cli/            command-line parsing
-  util/           small helpers (UTF-8 conversion)
-  resources/      icon, version info, application manifest
-tests/            Catch2 unit tests (run with CTest)
-cmake/            Version.h template
-spike/            throwaway M0 experiments (not part of the build)
-docs/PLAN.md      plan, decisions, milestones
+  main.cpp          entry point
+  app/              session flow (connect, host key, auth, shell) and the console <-> channel bridge
+  cli/              command-line parsing
+  console/          console modes, raw input thread, UTF-8 safe output, prompts
+  ssh/              libssh2 session, known_hosts, authentication
+  util/             small helpers (UTF-8, base64, paths)
+  resources/        icon, version info, application manifest
+tests/              Catch2 unit tests (run with CTest)
+tests/e2e/          end-to-end scripts against a real SSH host
+tools/conpty-run/   test driver: runs WinSSH in a pseudo console and checks its output
+cmake/              Version.h template
+spike/              throwaway M0 experiments (not part of the build)
+docs/PLAN.md        plan, decisions, milestones
 ```
 
-More modules (`console/`, `ssh/`, `highlight/`, `config/`, ...) are added in later milestones.
+More modules (`highlight/`, `config/`, `wt/`, ...) are added in later milestones.
+
+### End-to-end tests
+
+Needs a host that accepts your SSH key or agent and is already in `known_hosts`:
+
+```powershell
+.\tests\e2e\run.ps1 -Target user@host
+```
 
 ## License
 
