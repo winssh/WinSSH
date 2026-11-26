@@ -343,11 +343,11 @@ New WT tab (profile "WinSSH")
   └─ TUI picker: Profiles + Recent + filter
        ├─ Enter on a profile / recent  → connect
        ├─ type user@host + Enter       → quick connect (added to Recent)
-       ├─ n / e / s                    → Win32 dialog (new / edit / save recent as profile)
+       ├─ Ctrl+N / Ctrl+E / Ctrl+S     → Win32 dialog (new / edit / save recent as profile)
        │     ├─ Save & Connect → connect
        │     ├─ Save           → back to TUI (list updated)
        │     └─ Esc / Cancel   → back to TUI
-       ├─ d                            → delete profile (confirm y/N)
+       ├─ Delete                       → delete profile (confirm y/N)
        └─ Esc                          → exit
 ```
 
@@ -364,7 +364,7 @@ New WT tab (profile "WinSSH")
     hai@build-server      2 hours ago
     admin@192.168.1.1     yesterday
 
-  ↑/↓ move  Enter connect  type to filter  n new  e edit  s save recent  d delete  Esc quit
+  ↑/↓ move  Enter connect  type to filter  Ctrl+N new  Ctrl+E edit  Ctrl+S save recent  Del delete  Esc quit
 ```
 
 - Type-to-filter matches profile name, host, and user.
@@ -378,7 +378,8 @@ New WT tab (profile "WinSSH")
   password field, highlight rule sets, keepalive, auto-reconnect, host-key policy.
 - Buttons: **Connect** (no save), **Save**, **Save & Connect**. Enter = Save & Connect, Esc = Cancel.
 - Fully keyboard-driven (Tab order, mnemonics).
-- `e` on a profile and `s` on a recent entry open the same dialog, pre-filled.
+- `Ctrl+E` on a profile and `Ctrl+S` on a recent entry open the same dialog, pre-filled. (Plain letters
+  were planned first, but letters must go to the filter.)
 - Password is written to Credential Manager only; unchecking "Save password" deletes the stored one.
 - **Owner and focus:** under Windows Terminal, `GetConsoleWindow()` returns a hidden pseudo window,
   so WinSerial's `CenterParentWindow` would center on the wrong window. Capture `GetForegroundWindow()`
@@ -553,11 +554,27 @@ main thread (boost::asio io_context)                 input thread
 
 **PR 2 — picker and dialog:**
 
-- [ ] TUI picker: Profiles + Recent sections, type-to-filter, keys `Enter`/`n`/`e`/`s`/`d`/`Esc`, resize.
-- [ ] Quick connect from the filter box (`user@host[:port]` + Enter), added to Recent.
-- [ ] Win32 profile dialog: fields, Browse for key file, Connect / Save / Save & Connect, keyboard-only use.
-- [ ] Dialog owner/centering/focus under Windows Terminal (`GetForegroundWindow()` captured at start).
-- [ ] Delete profile from the picker with confirm (CLI `--delete` already removes the saved password).
+- [x] TUI picker (`picker/PickerModel`, `PickerView`, `PickerLoop`): Profiles + Recent sections,
+      type-to-filter (all words, any field), ↑/↓/PgUp/PgDn/Home/End, scrolling, resize, alternate
+      screen. **Keys changed from the plan:** `Ctrl+N` new, `Ctrl+E`/`F2` edit, `Ctrl+S` save a recent
+      entry, `Delete` delete (confirm `y`), `Esc` clears the filter then quits. Plain `n`/`e`/`s`/`d`
+      would collide with typing a filter ("dev" would delete).
+- [x] Quick connect from the filter box (`user@host[:port]` + Enter), recorded in Recent. `Ctrl+N` after
+      typing `user@host` pre-fills the dialog. Keys typed right after Enter go to the session.
+- [x] Win32 profile dialog (`picker/ProfileDialog`, `IDD_PROFILE`): ID, name, host, port, user, key file
+      with Browse, save password + password, highlight sets, keepalive, host-key policy, legacy
+      algorithms; Connect / Save / Save & Connect (default) / Cancel; mnemonics and Tab order;
+      validation shown in the dialog (`picker/ProfileForm`, unit tested); ID suggested from the host;
+      rename keeps the saved password.
+- [x] Dialog placement: `GetForegroundWindow()` captured at the start of `main`; dialog centered on it
+      (inside the monitor's work area), brought to the front with `AttachThreadInput`, no
+      cross-process owner; focus returned to the terminal on close.
+- [x] Delete from the picker with confirm; removes the saved password too.
+- [x] Tests: 91 unit tests (picker model, view, form); e2e `picker.txt` (filter, no match, Esc, delete
+      confirm/cancel, connect) and `picker-quick.txt` pass on CB2 (`run.ps1 -Picker [-NoProfile]`).
+      The dialog itself is a real window: manual test only. Manual test in Windows Terminal
+      (2026-11-26): Ctrl+N dialog on top and centered, focus back to the terminal; Tab / Alt keys,
+      Browse, Save & Connect; Ctrl+E edit; Delete.
 - **Done when:** a new WinSSH tab → pick or create a profile → connected, without touching the mouse.
 
 ### M5 — Windows Terminal integration and release (G3)

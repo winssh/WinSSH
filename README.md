@@ -4,13 +4,14 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-> Status: early development (milestone M4). Interactive SSH sessions, keyword highlighting with
-> custom rules, and profiles work; the connection picker and Windows Terminal integration come next.
+> Status: early development (milestone M4 done). Interactive SSH sessions, keyword highlighting with
+> custom rules, profiles and the connection picker work; Windows Terminal integration comes next.
 > See [docs/PLAN.md](docs/PLAN.md) for goals, design and milestones.
 
 ## Usage
 
 ```text
+winssh                          Connection picker (profiles, recent, quick connect)
 winssh [options] [user@]host[:port]
 winssh [options] <profile>
 
@@ -36,6 +37,9 @@ winssh --import-ssh-config                                           # from ~/.s
 ```
 
 Passwords can be saved in Windows Credential Manager (`--save-password`), never in a file.
+
+Run `winssh` with no destination for the **picker**: type to filter, `Enter` to connect, or type
+`user@host` and press `Enter`. `Ctrl+N` / `Ctrl+E` open a profile dialog, `Delete` removes a profile.
 See [docs/profiles.md](docs/profiles.md).
 
 ### In a session
@@ -104,6 +108,7 @@ src/
   config/           settings files (highlight.json, profiles.json, history.json), ~/.ssh/config import
   console/          console modes, raw input thread, UTF-8 safe output, prompts
   highlight/        VT scanner, PCRE2 rule engine, highlighter
+  picker/           connection picker (TUI) and the Win32 profile dialog
   ssh/              libssh2 session, known_hosts, authentication
   util/             small helpers (UTF-8, base64, paths)
   vault/            saved passwords in Windows Credential Manager
@@ -116,7 +121,7 @@ spike/              throwaway M0 experiments (not part of the build)
 docs/PLAN.md        plan, decisions, milestones
 ```
 
-More modules (`picker/`, `wt/`, ...) are added in later milestones.
+More modules (`wt/`, ...) are added in later milestones.
 
 ### End-to-end tests
 

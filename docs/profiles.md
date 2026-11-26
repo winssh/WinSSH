@@ -10,6 +10,45 @@ Windows Credential Manager        saved passwords ("WinSSH:<profile-id>")
 
 (`%WINSSH_CONFIG_DIR%` replaces `%APPDATA%\WinSSH` when set.)
 
+## The picker
+
+`winssh` with no destination opens the connection picker in the terminal:
+
+```text
+ WinSSH — select a connection                                  Filter: cb2_
+
+  PROFILES
+  > CB2 lab unit        root@10.0.0.108       [default,journal]
+  RECENT
+    admin@192.168.1.1   2026-11-26T10:00:00Z
+
+ ↑/↓ move  Enter connect  type to filter  Ctrl+N new  Ctrl+E edit  Ctrl+S save recent  Del delete  Esc quit
+```
+
+| Key | Action |
+|---|---|
+| typing | Filter (all words must match name, address, id or rule sets) |
+| `↑` `↓` `PgUp` `PgDn` `Home` `End` | Move |
+| `Enter` | Connect to the selection; if the filter is `user@host[:port]`, connect to that host |
+| `Ctrl+N` | New profile (pre-filled when the filter is `user@host`) |
+| `Ctrl+E` or `F2` | Edit the selected profile |
+| `Ctrl+S` | Save the selected recent connection as a profile |
+| `Delete` | Delete the selected profile (asks `y/N`; also removes its saved password) |
+| `Backspace`, `Ctrl+U` | Delete a character / clear the filter |
+| `Esc` | Clear the filter; on an empty filter, quit |
+
+### Profile dialog
+
+`Ctrl+N`, `Ctrl+E` and `Ctrl+S` open a small window centered on the terminal. Everything works
+with the keyboard: `Tab` moves between fields, underlined letters are `Alt` shortcuts, `Enter`
+is **Save & Connect**, `Esc` cancels.
+
+- **Connect** uses the values once without saving them (a password typed here is used once).
+- **Save** stores the profile and goes back to the picker.
+- **Save password** keeps the typed password in Windows Credential Manager. Leave the password field
+  empty to keep a password that is already saved; untick the box to remove it.
+- Leaving **Profile ID** empty and typing a host fills in an ID from the host name.
+
 ## Commands
 
 ```powershell
