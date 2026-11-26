@@ -1,0 +1,11 @@
+{
+  // e2e fixture: "default" replaces the built-in rules, so "fault" is not highlighted.
+  "ruleSets": {
+    "default": [
+      { "name": "marker", "keywords": ["WINSSH_MARK"], "caseSensitive": true, "style": "magenta" }
+    ],
+    "extra": [
+      { "name": "extra", "keywords": ["EXTRA_MARK"], "style": "blue" }
+    ]
+  }
+}

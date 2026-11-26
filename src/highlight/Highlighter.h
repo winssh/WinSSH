@@ -40,6 +40,13 @@ public:
     std::string Flush();
     bool HasPending() const { return !pending_.empty(); }
 
+    // Replaces the rules (e.g. after the rules file changed). Held-back text is kept.
+    void SetRules(std::shared_ptr<const Matcher> matcher, std::vector<std::string> styles)
+    {
+        matcher_ = std::move(matcher);
+        styles_ = std::move(styles);
+    }
+
     void SetEnabled(bool enabled) { enabled_ = enabled; }
     bool Enabled() const { return enabled_; }
     // Full-screen apps (vim, htop, less) use the alternate screen; highlighting pauses there.

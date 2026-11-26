@@ -1,6 +1,7 @@
 // WinSSH entry point.
 #include "Version.h"
 #include "app/Connect.h"
+#include "app/RulesCommands.h"
 #include "cli/CommandLine.h"
 #include "util/Utf8.h"
 
@@ -63,6 +64,15 @@ int wmain(int argc, wchar_t *argv[])
 
     case winssh::cli::Action::Connect:
         return winssh::app::RunConnect(o);
+
+    case winssh::cli::Action::CheckRules:
+        return winssh::app::RunCheckRules(o);
+
+    case winssh::cli::Action::TestRules:
+        return winssh::app::RunTestRules(o);
+
+    case winssh::cli::Action::InitRules:
+        return winssh::app::RunInitRules();
     }
     return kExitError;
 }

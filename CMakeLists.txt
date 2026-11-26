@@ -43,6 +43,7 @@ configure_file(cmake/Version.h.in "${CMAKE_CURRENT_BINARY_DIR}/generated/Version
 find_package(Boost CONFIG REQUIRED)
 find_package(libssh2 CONFIG REQUIRED)
 find_package(PCRE2 CONFIG REQUIRED COMPONENTS 8BIT)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 add_subdirectory(src)
 

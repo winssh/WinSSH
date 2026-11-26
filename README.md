@@ -4,8 +4,8 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-> Status: early development (milestone M2). Interactive SSH sessions with keyword highlighting work;
-> custom rules, profiles and Windows Terminal integration come next.
+> Status: early development (milestone M3). Interactive SSH sessions with keyword highlighting and
+> custom rules work; profiles and Windows Terminal integration come next.
 > See [docs/PLAN.md](docs/PLAN.md) for goals, design and milestones.
 
 ## Usage
@@ -17,7 +17,9 @@ winssh [options] [user@]host[:port]
   -p <port>       Port (default 22)
   -l <user>       User name
   -i <keyfile>    Private key file
+  --highlight <sets>  Rule sets to use, comma separated (default: default)
   --no-highlight  Turn off keyword highlighting
+  --init-rules / --check-rules / --test-rules "<text>"   Manage highlight rules
   -V, --version   Show version
   -h, --help      Show this help
 ```
@@ -47,7 +49,16 @@ or colors. Highlighting pauses while a full-screen app (vim, less, htop) is open
 | Yellow | IPv4 addresses, MAC addresses, `localhost`, `vlan` |
 | Cyan | `ip address`, `show`, `interface`, `route`, `spanning-tree` |
 
-Custom rules come in milestone M3.
+### Custom rules
+
+Put your own rule sets in `%APPDATA%\WinSSH\highlight.json`; WinSSH reloads the file while a
+session is open. See [docs/highlight-rules.md](docs/highlight-rules.md).
+
+```powershell
+winssh --init-rules                  # create a commented starter file
+winssh --check-rules                 # validate it and preview the colors
+winssh --highlight default,journal root@10.0.0.108
+```
 
 ## Development
 
@@ -76,6 +87,7 @@ src/
   main.cpp          entry point
   app/              session flow (connect, host key, auth, shell) and the console <-> channel bridge
   cli/              command-line parsing
+  config/           settings files (highlight.json)
   console/          console modes, raw input thread, UTF-8 safe output, prompts
   highlight/        VT scanner, PCRE2 rule engine, highlighter
   ssh/              libssh2 session, known_hosts, authentication
@@ -89,7 +101,7 @@ spike/              throwaway M0 experiments (not part of the build)
 docs/PLAN.md        plan, decisions, milestones
 ```
 
-More modules (`config/`, `wt/`, ...) are added in later milestones.
+More modules (`credentials/`, `wt/`, ...) are added in later milestones.
 
 ### End-to-end tests
 
@@ -97,7 +109,10 @@ Needs a host that accepts your SSH key or agent and is already in `known_hosts`:
 
 ```powershell
 .\tests\e2e\run.ps1 -Target user@host
+.\tests\e2e\run.ps1 -Target user@host -Script tests\e2e\custom-rules.txt -ConfigFixture tests\e2e\rules\custom.json
 ```
+
+Tests use their own settings folder (`build\e2e-config`), so your own `highlight.json` does not affect them.
 
 ## License
 

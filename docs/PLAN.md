@@ -210,7 +210,8 @@ let WinSerial use it too.
 
 ### 4.3 User-defined rules (G5)
 
-File: `%APPDATA%\WinSSH\highlight.json` (hot-reloaded on change). Example:
+File: `%APPDATA%\WinSSH\highlight.json` (hot-reloaded on change). Implemented in M3; the user
+reference is `docs/highlight-rules.md`. Example:
 
 ```json
 {
@@ -510,11 +511,18 @@ main thread (boost::asio io_context)                 input thread
 
 ### M3 — Custom highlight rules (G5)
 
-- [ ] `highlight.json` schema, loader, validation, error messages.
-- [ ] Hot reload on file change.
-- [ ] Named rule sets, per-session selection (`--highlight default,cb2-logs`).
-- [ ] `winssh --check-rules` preview.
-- [ ] Docs: rule format with examples.
+- [x] `highlight.json` loader (`config/HighlightConfig`, nlohmann-json): comments allowed, `style`
+      as a color string or an object, located errors (`ruleSets.cb2[1] ('fc'): ...`), bad rules
+      skipped, unknown fields as warnings, invalid JSON falls back to built-in rules, UTF-8 BOM ok.
+      Settings folder `%APPDATA%\WinSSH`, overridable with `WINSSH_CONFIG_DIR`.
+- [x] Hot reload: the session checks the file every second (`app/RulesSource`), swaps the rules and
+      prints `[winssh] highlight rules reloaded: N rules` with any errors.
+- [x] Named rule sets; a file `default` replaces the built-in one; `--highlight a,b` (earlier set wins).
+- [x] `winssh --check-rules` (color preview, exit 1 on problems), `--test-rules "<text>"`,
+      `--init-rules` (commented starter file with `default` and a `journal` example set).
+- [x] Docs: `docs/highlight-rules.md`.
+- [x] Tests: config/CLI/reload unit tests (60 total); e2e `custom-rules.txt` (file `default` replaces
+      built-ins, reload during the session) passes on the Ubuntu server and CB2.
 
 ### M4 — Profiles and history (G6)
 

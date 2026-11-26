@@ -2,6 +2,7 @@ find_package(Catch2 3 CONFIG REQUIRED)
 
 add_executable(winssh_tests
     test_command_line.cpp
+    test_config.cpp
     test_console.cpp
     test_escape_keys.cpp
     test_highlight.cpp

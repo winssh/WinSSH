@@ -5,6 +5,7 @@
   "dependencies": [
     "boost-asio",
     "libssh2",
+    "nlohmann-json",
     "pcre2"
   ],
   "features": {

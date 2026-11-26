@@ -1,0 +1,8 @@
+{
+  // e2e fixture copied over custom.json during the session: the marker turns green.
+  "ruleSets": {
+    "default": [
+      { "name": "marker", "keywords": ["WINSSH_MARK"], "caseSensitive": true, "style": "green" }
+    ]
+  }
+}

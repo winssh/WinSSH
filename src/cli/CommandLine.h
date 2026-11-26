@@ -29,6 +29,9 @@ enum class Action
     Connect,     // destination given
     ShowHelp,
     ShowVersion,
+    CheckRules, // --check-rules
+    TestRules,  // --test-rules <text>
+    InitRules,  // --init-rules
 };
 
 struct Options
@@ -39,6 +42,8 @@ struct Options
     int port = kDefaultPort;
     std::string identityFile; // -i
     bool highlight = true;    // --no-highlight turns it off
+    std::vector<std::string> highlightSets{"default"}; // --highlight a,b
+    std::string testText;     // --test-rules
 };
 
 struct ParseResult
