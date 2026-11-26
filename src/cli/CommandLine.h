@@ -38,6 +38,7 @@ struct Options
     std::string host;
     int port = kDefaultPort;
     std::string identityFile; // -i
+    bool highlight = true;    // --no-highlight turns it off
 };
 
 struct ParseResult

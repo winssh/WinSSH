@@ -1,0 +1,34 @@
+# End-to-end check of highlighting and Ctrl+] commands (M2).
+#   .\tests\e2e\run.ps1 -Target fc@10.0.0.111 -Script tests\e2e\highlight.txt
+send echo READY_$((1+1))\r
+expect READY_2
+
+# A default keyword is colored red (31) and an IP yellow (33)
+send printf 'link %s at %s\n' fault 10.1.2.3; echo HL_$((2+2))\r
+expect HL_4
+expect-raw \e[31mfault
+expect-raw \e[33m10.1.2.3
+
+# Ctrl+] h shows local help, Ctrl+] i shows connection info
+send \x1dh
+expect WinSSH commands
+send \x1di
+expect Host key:
+expect Highlighting: on
+
+# Ctrl+] f turns highlighting off and on
+send \x1df
+expect highlighting off
+send printf 'off %s\n' denied; echo OFF_$((3+3))\r
+expect-raw \noff denied
+expect OFF_6
+send \x1df
+expect highlighting on
+send printf 'on %s\n' denied; echo ON_$((4+4))\r
+expect-raw \e[31mdenied
+expect ON_8
+
+# Ctrl+] x disconnects with exit code 0
+send \x1dx
+expect Disconnected from
+exit 0
