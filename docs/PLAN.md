@@ -2,7 +2,7 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-Status: draft. D1–D4 decided; D5 pending (see section 11).
+Status: draft. D1–D5 and D9 decided (see section 11).
 
 ---
 
@@ -200,7 +200,7 @@ let WinSerial use it too.
 - **VT-aware scan:** split the stream into escape sequences (pass through untouched) and text runs
   (eligible for highlighting).
 - **Single pass, all rules at once:** compile rules into one matcher; on overlap, the earlier rule
-  (higher priority) wins. Engine candidates: PCRE2 (JIT) or RE2 — pick in M2.
+  (higher priority) wins. Engine: PCRE2 with JIT (D5, benchmark in 4.4).
 - **Save and restore color:** after a match, restore the server's current SGR state, not plain reset.
 - **No lag:** write text right away. Only hold back a trailing partial word (bounded, e.g. ≤ 64 bytes
   or ≤ 10 ms) so a keyword split across two reads still matches.
@@ -235,6 +235,22 @@ File: `%APPDATA%\WinSSH\highlight.json` (hot-reloaded on change). Example:
 - Built-in `default` set = WinSerial's current keyword list, so behavior matches out of the box.
 - `winssh --check-rules` validates the file and prints each rule's sample output in color.
 - Bad rule → warning on start, that rule is skipped, session still opens.
+
+### 4.4 Regex engine benchmark (D5, 2026-11-26)
+
+Spike: `spike/regex/`. WinSerial's 6 default rules combined into one pattern, 8 MB of output
+(synthetic journal-style lines plus captured sessions from the Ubuntu server and CB2), one match
+loop per line like the highlighter does per text run.
+
+| Engine | Speed | Matches |
+|---|---|---|
+| PCRE2 10.47, JIT | ~42 MB/s | same counts as RE2 for all 6 rules |
+| RE2 | ~39 MB/s | (reference) |
+| `std::regex` (WinSerial today) | ~0.4 MB/s | ~100× slower |
+
+Bad user rule `(a+)+$` on 29 characters: PCRE2 stops at the match limit in 0.45 ms; RE2 is linear
+(0.02 ms). Both are safe. PCRE2 wins on syntax (lookaround, backreferences) and dependencies
+(RE2 needs abseil, a much longer build).
 
 ---
 
@@ -476,11 +492,19 @@ main thread (boost::asio io_context)                 input thread
 
 ### M2 — Highlighting engine
 
-- [ ] VT tokenizer (text vs escape sequences) + tests with captured real output.
-- [ ] Rule engine: single pass, priority, SGR save/restore, partial-word hold-back.
-- [ ] Alternate-screen auto-pause.
-- [ ] Built-in `default` rule set (port WinSerial keywords).
-- [ ] Escape key command mode: help, toggle highlight, exit.
+- [x] VT scanner (`highlight/VtScanner`): text vs CSI / OSC / DCS / two-byte sequences, reassembles
+      sequences split across reads, classifies SGR and alternate-screen switches.
+- [x] Rule engine (`highlight/Rules`, `highlight/Highlighter`): all rules in one PCRE2 pattern (user
+      groups mapped per rule), earlier rule wins, server SGR replayed after each match, match limit
+      against bad regexes, invalid UTF-8 tolerated. Hold-back: a partial line ≤ 64 bytes is held
+      whole (multi-word keywords still match), longer lines hold only the last word; flushed after 10 ms.
+- [x] Alternate-screen auto-pause.
+- [x] Built-in `default` rule set (WinSerial keywords and colors).
+- [x] Escape key command mode `Ctrl+]`: `h` help, `f` toggle highlight, `i` connection info, `x` exit
+      (exit code 0), `Ctrl+]` twice sends it. `--no-highlight` flag.
+- [x] Tests: unit tests for scanner, highlighter, rules, escape keys (48 total); e2e `highlight.txt`
+      passes on the Ubuntu server and CB2 (colors on, off, on again; `Ctrl+]` commands).
+- [ ] Manual check in Windows Terminal: no visible typing lag, `ls --color` / `ip -c a` colors kept.
 - **Done when:** highlighted output never breaks server colors or full-screen apps; no visible typing lag.
 
 ### M3 — Custom highlight rules (G5)
@@ -549,7 +573,7 @@ main thread (boost::asio io_context)                 input thread
 | D2 | libssh vs libssh2 | **libssh2** — Windows OpenSSH agent works, BSD-3 license (spike run 1, section 3.2) | 2026-11-26 |
 | D3 | Escape key | **`Ctrl+]`**, configurable | 2026-11-26 |
 | D4 | Picker UI | **TUI picker** for choosing; **Win32 dialog** only for new/edit profile (section 6.3) | 2026-11-26 |
-| D5 | Regex engine: PCRE2 vs RE2 | Pending M2 | |
+| D5 | Regex engine | **PCRE2 (JIT)**: as fast as RE2, full Perl syntax, no abseil dependency (4.4) | 2026-11-26 |
 | D6 | Config format | JSON in `%APPDATA%\WinSSH\` | |
 | D7 | Secret storage | Windows Credential Manager | |
 | D8 | License | Repo has MIT; WinSerial is Apache-2.0. Check compatibility if code is copied from WinSerial | |

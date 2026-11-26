@@ -4,8 +4,8 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-> Status: early development (milestone M1). Interactive SSH sessions work (key/agent, password,
-> keyboard-interactive); highlighting, profiles and Windows Terminal integration come next.
+> Status: early development (milestone M2). Interactive SSH sessions with keyword highlighting work;
+> custom rules, profiles and Windows Terminal integration come next.
 > See [docs/PLAN.md](docs/PLAN.md) for goals, design and milestones.
 
 ## Usage
@@ -17,9 +17,37 @@ winssh [options] [user@]host[:port]
   -p <port>       Port (default 22)
   -l <user>       User name
   -i <keyfile>    Private key file
+  --no-highlight  Turn off keyword highlighting
   -V, --version   Show version
   -h, --help      Show this help
 ```
+
+### In a session
+
+Press `Ctrl+]`, then:
+
+| Key | Action |
+|---|---|
+| `h` | Help |
+| `f` | Toggle keyword highlighting |
+| `i` | Connection info (server, host key fingerprint, cipher) |
+| `x` | Disconnect and exit |
+| `Ctrl+]` | Send `Ctrl+]` to the server |
+
+### Highlighting
+
+Output is scanned for keywords and colored without touching the server's own escape sequences
+or colors. Highlighting pauses while a full-screen app (vim, less, htop) is open. Default rules
+(case-insensitive, whole words), the same as WinSerial:
+
+| Color | Matches |
+|---|---|
+| Red | `error`, `failed`, `no`, `down`, `disabled`, `unknown`, `fault`, `shutdown`, `disconnected`, `denied`, `refused`, `problem`, `failure` |
+| Green | `enabled`, `connected`, `up`, `yes`, `ok`, `success` |
+| Yellow | IPv4 addresses, MAC addresses, `localhost`, `vlan` |
+| Cyan | `ip address`, `show`, `interface`, `route`, `spanning-tree` |
+
+Custom rules come in milestone M3.
 
 ## Development
 
@@ -49,6 +77,7 @@ src/
   app/              session flow (connect, host key, auth, shell) and the console <-> channel bridge
   cli/              command-line parsing
   console/          console modes, raw input thread, UTF-8 safe output, prompts
+  highlight/        VT scanner, PCRE2 rule engine, highlighter
   ssh/              libssh2 session, known_hosts, authentication
   util/             small helpers (UTF-8, base64, paths)
   resources/        icon, version info, application manifest
@@ -60,7 +89,7 @@ spike/              throwaway M0 experiments (not part of the build)
 docs/PLAN.md        plan, decisions, milestones
 ```
 
-More modules (`highlight/`, `config/`, `wt/`, ...) are added in later milestones.
+More modules (`config/`, `wt/`, ...) are added in later milestones.
 
 ### End-to-end tests
 
