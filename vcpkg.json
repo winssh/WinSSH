@@ -1,6 +1,6 @@
 {
   "name": "winssh",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "SSH terminal for Windows, built to run as a Windows Terminal tab",
   "dependencies": [
     "boost-asio",
