@@ -1,10 +1,19 @@
 name: Release
 
-# Push a tag on main to release: git tag v0.2.0 && git push origin v0.2.0
+# Two ways in (docs/PLAN.md, D10/D11):
+#  - a pushed tag on main: scripts\tag.ps1 -Push (or git tag v0.2.0 && git push origin v0.2.0)
+#  - called by the "Tag release" workflow (tag.yml) with the tag it just created. Tags pushed with
+#    GITHUB_TOKEN do not trigger workflows, so tag.yml calls this one directly (no double release).
 # The version comes from the tag (v0.2.0 -> 0.2.0, v0.2.0-rc1 -> 0.2.0-rc1, published as a pre-release).
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag to release, e.g. v0.2.0"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,27 +25,32 @@ jobs:
     env:
       VCPKG_ROOT: ${{ github.workspace }}\vcpkg
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-cache
+      # On push the tag is the ref; when called, github.ref is the caller's branch, so use the input.
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0 # to check that the tag is on main
 
       - name: Version from tag
         id: version
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = $env:RELEASE_TAG
           if ($tag -notmatch '^v(\d+\.\d+\.\d+)(-[0-9A-Za-z.-]+)?$') { throw "Tag '$tag' is not vX.Y.Z or vX.Y.Z-suffix" }
           $version = $tag.Substring(1)
+          "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
           "prerelease=$(if ($version.Contains('-')) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
           # Releases come from main (docs/PLAN.md, D9).
+          $commit = git rev-parse "refs/tags/$tag^{commit}"
           git fetch origin main --quiet
-          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          git merge-base --is-ancestor $commit origin/main
           if ($LASTEXITCODE -ne 0) { throw "Tag $tag is not on main; merge develop into main first, then tag main" }
-          Write-Host "Releasing WinSSH $version"
+          Write-Host "Releasing WinSSH $version from $commit"
 
       - name: Set up vcpkg at the manifest baseline
         shell: pwsh
@@ -82,6 +96,7 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           name: WinSSH ${{ steps.version.outputs.version }}
           prerelease: ${{ steps.version.outputs.prerelease }}
           generate_release_notes: true
