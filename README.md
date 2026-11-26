@@ -4,8 +4,8 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-> Status: early development (milestone M4 done). Interactive SSH sessions, keyword highlighting with
-> custom rules, profiles and the connection picker work; Windows Terminal integration comes next.
+> Status: early development (milestone M5). Interactive SSH sessions, keyword highlighting with
+> custom rules, profiles, the connection picker, Windows Terminal integration and an installer.
 > See [docs/PLAN.md](docs/PLAN.md) for goals, design and milestones.
 
 ## Usage
@@ -78,6 +78,28 @@ winssh --check-rules                 # validate it and preview the colors
 winssh --highlight default,journal root@10.0.0.108
 ```
 
+## Install
+
+From the [Releases](https://github.com/winssh/WinSSH/releases) page:
+
+- **Installer** `WinSSH-setup-<version>.exe`: per-user, no admin rights. Optionally adds `winssh`
+  to your PATH and adds WinSSH (and one entry per profile) to the Windows Terminal menu.
+- **Portable** `WinSSH-portable-<version>.zip`: unzip and run `WinSSH.exe`. To add it to Windows
+  Terminal, run `WinSSH.exe --wt-install` once (again after moving the exe).
+
+### Windows Terminal
+
+```powershell
+winssh --wt-install      # "WinSSH" (picker) + "WinSSH: <profile>" for each profile
+winssh --wt-uninstall
+```
+
+Open a new Windows Terminal window to see the entries. After `--wt-install`, the entries follow
+your profiles automatically (add, rename, delete). WinSSH writes a
+[JSON fragment](https://learn.microsoft.com/windows/terminal/json-fragment-extensions) and never
+edits Windows Terminal's `settings.json`. Set `"wtTab": { "color": "#2d7d46" }` in a profile to
+color its tab.
+
 ## Development
 
 ### Prerequisites
@@ -96,7 +118,25 @@ ctest --preset release
 ```
 
 The build uses the `x64-windows-static` vcpkg triplet and the static MSVC runtime,
-so `WinSSH.exe` runs without extra DLLs.
+so `WinSSH.exe` runs without extra DLLs. Local builds report version `0.0.0-dev`.
+
+### Release
+
+Merge `develop` into `main`, then tag `main`; the release workflow builds, tests and publishes
+the installer, the portable zip and `SHA256SUMS.txt`. The version comes from the tag.
+
+```powershell
+git tag v0.2.0-rc1; git push origin v0.2.0-rc1     # pre-release
+git tag v0.2.0; git push origin v0.2.0             # release
+```
+
+To package locally (needs Inno Setup 6):
+
+```powershell
+cmake --preset default -DWINSSH_VERSION=0.2.0-rc1
+cmake --build --preset release
+.\scripts\package.ps1 -Version 0.2.0-rc1          # -> build\dist
+```
 
 ### Layout
 
@@ -112,16 +152,19 @@ src/
   ssh/              libssh2 session, known_hosts, authentication
   util/             small helpers (UTF-8, base64, paths)
   vault/            saved passwords in Windows Credential Manager
+  wt/               Windows Terminal fragment (profiles in the WT menu)
   resources/        icon, version info, application manifest
 tests/              Catch2 unit tests (run with CTest)
 tests/e2e/          end-to-end scripts against a real SSH host
 tools/conpty-run/   test driver: runs WinSSH in a pseudo console and checks its output
 cmake/              Version.h template
+installer/          Inno Setup script
+scripts/            packaging (portable zip + installer)
 spike/              throwaway M0 experiments (not part of the build)
 docs/PLAN.md        plan, decisions, milestones
 ```
 
-More modules (`wt/`, ...) are added in later milestones.
+More modules are added in later milestones (see docs/PLAN.md).
 
 ### End-to-end tests
 
