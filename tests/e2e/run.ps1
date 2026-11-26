@@ -2,25 +2,33 @@
 #   .\tests\e2e\run.ps1 -Target fc@10.0.0.111
 #   .\tests\e2e\run.ps1 -Target root@10.0.0.108 -Script tests\e2e\basic-session.txt
 #   .\tests\e2e\run.ps1 -Target fc@10.0.0.111 -Script tests\e2e\custom-rules.txt -ConfigFixture tests\e2e\rules\custom.json
+#   .\tests\e2e\run.ps1 -Target root@10.0.0.108 -Script tests\e2e\picker.txt -Picker
 #
-# Scripts run with the repository root as the current directory. With -ConfigFixture, WinSSH uses
-# build\e2e-config as its settings folder (WINSSH_CONFIG_DIR) and the fixture as highlight.json;
-# otherwise it uses an empty settings folder, so your own highlight.json never affects a test.
+# Scripts run with the repository root as the current directory. WinSSH uses build\e2e-config as
+# its settings folder (WINSSH_CONFIG_DIR), emptied before each run, so your own highlight.json,
+# profiles and history never affect a test. -ConfigFixture copies a highlight.json into it.
 param(
     [Parameter(Mandatory = $true)][string]$Target,
     [string]$Script = "$PSScriptRoot\basic-session.txt",
     [string]$ConfigFixture = "",
     [string]$Config = "Release",
+    # Build folder with WinSSH.exe and conpty-run.exe (default: <repo>\build)
+    [string]$BuildDir = "",
     [int]$Timeout = 20,
     [string[]]$ExtraArgs = @(),
     # Save -Target as profile "e2e" (with -ProfileArgs) and connect by that name instead.
     [switch]$AsProfile,
-    [string[]]$ProfileArgs = @()
+    [string[]]$ProfileArgs = @(),
+    # Start WinSSH with no destination (the picker). Saves -Target as profile "e2e" first,
+    # unless -NoProfile is given.
+    [switch]$Picker,
+    [switch]$NoProfile
 )
 
 $root = Resolve-Path "$PSScriptRoot\..\.."
-$winssh = Join-Path $root "build\$Config\WinSSH.exe"
-$driver = Join-Path $root "build\$Config\conpty-run.exe"
+if (-not $BuildDir) { $BuildDir = Join-Path $root "build" }
+$winssh = Join-Path $BuildDir "$Config\WinSSH.exe"
+$driver = Join-Path $BuildDir "$Config\conpty-run.exe"
 $log = Join-Path $root "build\e2e-$($Target -replace '[^A-Za-z0-9._-]', '_').log"
 $configDir = Join-Path $root "build\e2e-config"
 
@@ -39,13 +47,14 @@ $oldConfig = $env:WINSSH_CONFIG_DIR
 $env:WINSSH_CONFIG_DIR = $configDir
 Push-Location $root
 try {
-    $destination = $Target
-    if ($AsProfile) {
+    $destination = @($Target)
+    if (($AsProfile -or $Picker) -and -not $NoProfile) {
         & $winssh --save e2e @ProfileArgs $Target | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "winssh --save failed" }
-        $destination = "e2e"
+        $destination = @("e2e")
     }
-    & $driver --timeout $Timeout --log $log --script $scriptPath -- $winssh @ExtraArgs $destination
+    if ($Picker) { $destination = @() }
+    & $driver --timeout $Timeout --log $log --script $scriptPath -- $winssh @ExtraArgs @destination
     $code = $LASTEXITCODE
 }
 finally {
