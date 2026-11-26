@@ -1,0 +1,74 @@
+name: Tag release
+
+# Actions > "Tag release" > Run workflow (on main). Computes the next tag with scripts/tag.ps1
+# (D11), creates and pushes it, then runs the release workflow for it. "dry_run" (default) only
+# shows the tag that would be created, in the job summary.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: only show the tag that would be created"
+        type: boolean
+        default: true
+      rc:
+        description: "Release candidate (vX.Y.Z-rcN)"
+        type: boolean
+        default: false
+      bump:
+        description: "Bump (auto = from Conventional Commits since the last release)"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      version:
+        description: "Exact version instead of a bump, e.g. 0.3.0 (optional)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  checks: read
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Compute and push tag
+    runs-on: windows-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Tag
+        id: tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Inputs go through env vars, never pasted into the script text.
+          IN_VERSION: ${{ inputs.version }}
+          IN_BUMP: ${{ inputs.bump }}
+          IN_RC: ${{ inputs.rc }}
+          IN_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          $params = @{}
+          if ($env:IN_VERSION) { $params.Version = $env:IN_VERSION }
+          elseif ($env:IN_BUMP -ne 'auto') { $params.Bump = $env:IN_BUMP }
+          if ($env:IN_RC -eq 'true') { $params.Rc = $true }
+          if ($env:IN_DRY_RUN -eq 'true') { $params.DryRun = $true } else { $params.Push = $true }
+          .\scripts\tag.ps1 @params
+
+  release:
+    name: Release
+    needs: tag
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}

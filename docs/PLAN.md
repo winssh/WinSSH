@@ -603,6 +603,26 @@ main thread (boost::asio io_context)                 input thread
       tag on `main`).
 - [ ] README with screenshots/GIF.
 
+### M5.1 — Release tagging (D11)
+
+- [x] `scripts/tag.ps1` + `scripts/TagVersion.psm1`: with no options, the next version comes from the
+      Conventional Commits since the last release (`feat:` → minor; `type!:` / `BREAKING CHANGE` → major,
+      minor while on 0.x; anything else → patch; merge commits ignored). `-Rc` gives the next release
+      candidate of that version (`rc10` sorts after `rc9`); without `-Rc` the result is the release itself,
+      which also finalizes existing rcs. `-Bump major|minor|patch` and `-Version X.Y.Z[-rcN]` override.
+      `-DryRun` shows the tag and the reason; without `-Push` the annotated tag stays local.
+- [x] Checks: the commit is on `<remote>/main` (D9), the tag is new and newer than the last release,
+      the commit's CI check runs passed (via `gh`, `-SkipCiCheck` to override).
+- [x] `.github/workflows/tag.yml` (workflow_dispatch: dry_run default on, rc, bump, version): runs
+      `tag.ps1 -Push`, then calls `release.yml` through `workflow_call`. Needed because tags pushed with
+      `GITHUB_TOKEN` do not trigger workflows; it also means no double release. `release.yml` still runs
+      on pushed tags (local `tag.ps1 -Push`), and takes the tag from `inputs.tag` when called.
+      Inputs reach the script through environment variables (no script injection).
+- [x] Tests: `tests/scripts/TagVersion.Tests.ps1` (42 checks, plain PowerShell, no Pester 5 needed),
+      run by CTest as `tag-version-rules`. Local dry runs: `main` (only the initial commit) → `v0.0.1`;
+      a commit not on `main` is refused; `develop`'s commits would give `v0.1.0` / `v0.1.0-rc1`.
+      Not yet run on GitHub: `tag.yml` (works once it is on `main`).
+
 ### M6 — Lab-work extras
 
 - [ ] Keepalive + auto-reconnect with backoff.
@@ -622,6 +642,7 @@ main thread (boost::asio io_context)                 input thread
   workflow (M5) runs on the tag, not on every push to `main`.
 - The version is the tag (D10): `git tag v0.2.0` on `main` → the workflow builds WinSSH 0.2.0. No
   version-bump commits; local builds report `0.0.0-dev`. Release candidates: `v0.2.0-rc1`.
+- Tags are made with `scripts/tag.ps1` (locally) or the **Tag release** workflow (D11, M5.1).
 - Stacked feature branches (one started from another before it merged): after the first PR is
   squash-merged, rebase the next one with `git rebase --onto develop <old-base-branch>`.
 - Recommended GitHub settings: protect `main` and `develop` (pull requests only, CI must pass).
@@ -648,3 +669,4 @@ main thread (boost::asio io_context)                 input thread
 | D8 | License | Repo has MIT; WinSerial is Apache-2.0. Check compatibility if code is copied from WinSerial | |
 | D9 | Branching | `feature/*` → `develop` via PR; `develop` → `main` at release (see 10.1) | 2026-11-26 |
 | D10 | Versioning | From the release tag (`vX.Y.Z[-rcN]`), passed to CMake by CI; no bump commits | 2026-11-26 |
+| D11 | Tagging | `scripts/tag.ps1`: next version from Conventional Commits (or `-Bump`/`-Version`), `-Rc`, `-DryRun`; local or via `tag.yml` dispatch, which calls `release.yml` | 2026-11-26 |
