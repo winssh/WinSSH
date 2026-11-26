@@ -144,6 +144,11 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             o.identityFile = *v;
             continue;
         }
+        if (a == "--no-highlight")
+        {
+            o.highlight = false;
+            continue;
+        }
         if (!a.empty() && a.front() == '-')
             return Fail("unknown option: " + a);
 
@@ -183,8 +188,11 @@ std::string UsageText()
            "  -p <port>       Port (default 22)\n"
            "  -l <user>       User name\n"
            "  -i <keyfile>    Private key file\n"
+           "  --no-highlight  Turn off keyword highlighting\n"
            "  -V, --version   Show version\n"
-           "  -h, --help      Show this help\n";
+           "  -h, --help      Show this help\n"
+           "\n"
+           "In a session, press Ctrl+] then h for local commands (highlighting, info, exit).\n";
 }
 
 } // namespace winssh::cli

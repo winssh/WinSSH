@@ -4,6 +4,8 @@ add_library(winssh_core STATIC
     app/Bridge.h
     app/Connect.cpp
     app/Connect.h
+    app/EscapeKeys.cpp
+    app/EscapeKeys.h
     cli/CommandLine.cpp
     cli/CommandLine.h
     console/Console.cpp
@@ -12,6 +14,12 @@ add_library(winssh_core STATIC
     console/InputReader.h
     console/OutputWriter.cpp
     console/OutputWriter.h
+    highlight/Highlighter.cpp
+    highlight/Highlighter.h
+    highlight/Rules.cpp
+    highlight/Rules.h
+    highlight/VtScanner.cpp
+    highlight/VtScanner.h
     ssh/Auth.cpp
     ssh/Auth.h
     ssh/KnownHosts.cpp
@@ -35,7 +43,8 @@ target_compile_definitions(winssh_core PUBLIC
     _WIN32_WINNT=0x0A00   # Windows 10
 )
 target_compile_options(winssh_core PUBLIC /W4 /permissive- /utf-8)
-target_link_libraries(winssh_core PUBLIC Boost::boost libssh2::libssh2)
+target_link_libraries(winssh_core PUBLIC Boost::boost libssh2::libssh2 PCRE2::8BIT)
+target_compile_definitions(winssh_core PRIVATE PCRE2_STATIC)
 
 # Application
 add_executable(WinSSH

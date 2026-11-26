@@ -1,9 +1,13 @@
 #include "app/Connect.h"
 
+#include "Version.h"
+
 #include "app/Bridge.h"
 #include "console/Console.h"
 #include "console/InputReader.h"
 #include "console/OutputWriter.h"
+#include "highlight/Highlighter.h"
+#include "highlight/Rules.h"
 #include "ssh/Auth.h"
 #include "ssh/KnownHosts.h"
 #include "ssh/Session.h"
@@ -16,6 +20,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <memory>
 
 namespace winssh::app
 {
@@ -210,9 +215,26 @@ int RunConnect(const cli::Options &options)
     console::SetInterruptHandler(nullptr); // raw mode: Ctrl+C is a key for the server, not a signal
     guard.EnableRawInput();
 
+    std::unique_ptr<highlight::Highlighter> highlighter;
+    if (options.highlight)
+    {
+        auto compiled = highlight::CompileRules(highlight::DefaultRules());
+        for (const auto &e : compiled.errors)
+            PrintError("winssh: highlight " + e + "\r\n");
+        if (compiled.matcher)
+            highlighter = std::make_unique<highlight::Highlighter>(compiled.matcher, compiled.styles);
+    }
+
+    const char *cipher = libssh2_session_methods(session.Raw(), LIBSSH2_METHOD_CRYPT_CS);
+    const std::string info = "Connected to " + target + " port " + std::to_string(options.port) + "\r\n" +
+                             "Server: " + session.RemoteBanner() + "\r\n" +
+                             "Host key: " + KeyTypeLabel(session.HostKeyType()) + " " + session.HostKeyFingerprint() +
+                             "\r\n" + "Cipher: " + (cipher ? cipher : "?") + "\r\n" + "Auth: " + result.method +
+                             "\r\n" + "WinSSH " + APP_VERSION_FULL + "\r\n";
+
     console::OutputWriter output;
     console::InputReader input;
-    Bridge bridge(io, session, channel, output);
+    Bridge bridge(io, session, channel, output, highlighter.get(), info);
     const bool ended = bridge.Run(input);
     output.Flush();
     guard.RestoreInput();
@@ -222,6 +244,15 @@ int RunConnect(const cli::Options &options)
         PrintError("\r\nwinssh: connection to " + host + " lost: " + bridge.Error() + "\r\n");
         libssh2_channel_free(channel);
         return kExitConnectionError;
+    }
+
+    if (bridge.UserExited())
+    {
+        libssh2_channel_close(channel);
+        libssh2_channel_free(channel);
+        session.Disconnect("user exit");
+        PrintError("\x1b[0m\r\nDisconnected from " + host + ".\r\n");
+        return 0;
     }
 
     libssh2_channel_close(channel);

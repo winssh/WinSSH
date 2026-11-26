@@ -4,7 +4,8 @@
   "description": "SSH terminal for Windows, built to run as a Windows Terminal tab",
   "dependencies": [
     "boost-asio",
-    "libssh2"
+    "libssh2",
+    "pcre2"
   ],
   "features": {
     "tests": {
