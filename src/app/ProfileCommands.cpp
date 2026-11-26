@@ -7,6 +7,7 @@
 #include "console/Console.h"
 #include "util/Utf8.h"
 #include "vault/PasswordVault.h"
+#include "wt/Fragment.h"
 
 #include <windows.h>
 
@@ -58,10 +59,14 @@ bool LoadForEdit(config::ProfileFile &pf)
 bool Save(const std::vector<config::Profile> &profiles)
 {
     std::string error;
-    if (config::SaveProfiles(config::ProfilesPath(), profiles, &error))
-        return true;
-    PrintError("winssh: " + error + "\r\n");
-    return false;
+    if (!config::SaveProfiles(config::ProfilesPath(), profiles, &error))
+    {
+        PrintError("winssh: " + error + "\r\n");
+        return false;
+    }
+    if (const std::string wtError = wt::SyncIfInstalled(profiles); !wtError.empty())
+        PrintError("winssh: " + wtError + "\r\n");
+    return true;
 }
 
 } // namespace
@@ -154,6 +159,38 @@ int RunListProfiles()
         Out("  " + Pad(r.profileId.empty() ? Address(r.user, r.host, r.port) : r.profileId, 28) + r.lastConnected +
             "\r\n");
     return pf.errors.empty() ? 0 : 1;
+}
+
+int RunWtInstall()
+{
+    const auto pf = config::LoadProfiles(config::ProfilesPath());
+    for (const auto &e : pf.errors)
+        PrintError("winssh: profiles.json: " + e + " (profile skipped)\r\n");
+    std::string error;
+    if (!wt::WriteFragment(pf.profiles, &error))
+    {
+        PrintError("winssh: " + error + "\r\n");
+        return 1;
+    }
+    Out("Windows Terminal profiles written to " + PathText(wt::FragmentPath()) + "\r\n" + "  WinSSH" +
+        (pf.profiles.empty() ? "" : " + " + std::to_string(pf.profiles.size()) + " profile(s)") +
+        ", started with " + PathText(wt::CurrentExePath()) + "\r\n" +
+        "Open a new Windows Terminal window to see them in the dropdown menu.\r\n"
+        "They update automatically when you add, change or delete WinSSH profiles.\r\n");
+    return 0;
+}
+
+int RunWtUninstall()
+{
+    const bool was = wt::IsInstalled();
+    std::string error;
+    if (!wt::RemoveFragment(&error))
+    {
+        PrintError("winssh: " + error + "\r\n");
+        return 1;
+    }
+    Out(was ? "Removed the WinSSH profiles from Windows Terminal.\r\n" : "WinSSH was not added to Windows Terminal.\r\n");
+    return 0;
 }
 
 int RunImportSshConfig()

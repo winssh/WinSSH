@@ -89,6 +89,12 @@ int wmain(int argc, wchar_t *argv[])
 
     case winssh::cli::Action::ImportSshConfig:
         return winssh::app::RunImportSshConfig();
+
+    case winssh::cli::Action::WtInstall:
+        return winssh::app::RunWtInstall();
+
+    case winssh::cli::Action::WtUninstall:
+        return winssh::app::RunWtUninstall();
     }
     return kExitError;
 }

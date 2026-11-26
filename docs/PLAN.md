@@ -397,8 +397,9 @@ Use **WT JSON fragments** instead of editing `settings.json` with regex:
 - Write `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\WinSSH\winssh.json`.
 - One base profile `WinSSH` (opens the picker), plus **one WT profile per saved WinSSH profile**
   (`commandline: "winssh.exe -p cb2-lab"`) so each device shows up in the WT dropdown and in
-  `wt -p "WinSSH: cb2-lab"`.
-- WinSSH rewrites the fragment whenever profiles change. Uninstall deletes the folder.
+  `wt -p "WinSSH: cb2-lab"`. (Implemented in M5 with `winssh.exe cb2-lab`, see `wt/Fragment`.)
+- WinSSH rewrites the fragment whenever profiles change (once installed with `--wt-install` or the
+  installer). Uninstall deletes it.
 - WT reads fragments on start; user's own `settings.json` is never touched.
 - Use stable GUIDs per profile (derive from profile id) so WT keeps user overrides across rewrites.
 
@@ -579,10 +580,27 @@ main thread (boost::asio io_context)                 input thread
 
 ### M5 — Windows Terminal integration and release (G3)
 
-- [ ] Fragment generator: base profile + one per saved profile; rewrite on change.
-- [ ] Tab title.
-- [ ] Inno Setup installer (PATH, fragment, Start Menu), portable zip.
-- [ ] Release workflow: tag `vX.Y.Z` → build, test, attach installer + zip.
+- [x] Fragment generator (`wt/Fragment`): base `WinSSH` profile (picker) + `WinSSH: <name>` per profile,
+      `commandline` = this exe + profile id, exe as icon, `tabColor` from a profile's `wtTab.color`.
+      GUIDs are UUIDv5 of the profile id (case-insensitive) in a fixed WinSSH namespace.
+      `--wt-install` / `--wt-uninstall`; after `--wt-install` (or the installer) the fragment is
+      rewritten whenever profiles change (`--save`, `--delete`, import, picker, dialog). Not written
+      unless installed, so a portable copy never touches WT by itself. `WINSSH_WT_FRAGMENTS_DIR` for tests.
+- [x] Tab title (M4: `WinSSH: <profile name>` / `user@host`).
+- [x] Inno Setup installer (`installer/WinSSH.iss`): per-user (no admin) in `%LOCALAPPDATA%\Programs\WinSSH`,
+      optional user PATH (kept as REG_EXPAND_SZ), optional WT profiles (`--wt-install`, removed on
+      uninstall), Start Menu entries, "open in Windows Terminal" at the end. Settings and saved
+      passwords are kept on uninstall. `scripts/package.ps1` builds the portable zip and the installer
+      and checks the exe's version.
+- [x] Version from the tag (D10): `-DWINSSH_VERSION=X.Y.Z[-suffix]`, local builds `0.0.0-dev`.
+- [x] Release workflow (`.github/workflows/release.yml`): tag `vX.Y.Z` on `main` → build with that
+      version, test, package, `SHA256SUMS.txt`, GitHub Release (`-rcN` tags are pre-releases).
+      Refuses tags that are not on `main`.
+- [x] Tested locally: 95 unit tests; `--wt-install` / auto-sync / `--wt-uninstall` in temp folders;
+      a `0.2.0-rc1` build packaged into zip + installer. Manual (2026-11-26): `WinSSH-setup-0.2.0-rc1.exe`
+      installed and run OK; uninstall removed the app folder, the PATH entry (other entries intact) and
+      the WT fragment, and kept `%APPDATA%\WinSSH`. Not yet: the release workflow on GitHub (needs a
+      tag on `main`).
 - [ ] README with screenshots/GIF.
 
 ### M6 — Lab-work extras
@@ -602,6 +620,8 @@ main thread (boost::asio io_context)                 input thread
 
 - `main` always equals the latest release. Each release is a tag `vX.Y.Z` on `main`; the release
   workflow (M5) runs on the tag, not on every push to `main`.
+- The version is the tag (D10): `git tag v0.2.0` on `main` → the workflow builds WinSSH 0.2.0. No
+  version-bump commits; local builds report `0.0.0-dev`. Release candidates: `v0.2.0-rc1`.
 - Stacked feature branches (one started from another before it merged): after the first PR is
   squash-merged, rebase the next one with `git rebase --onto develop <old-base-branch>`.
 - Recommended GitHub settings: protect `main` and `develop` (pull requests only, CI must pass).
@@ -627,3 +647,4 @@ main thread (boost::asio io_context)                 input thread
 | D7 | Secret storage | Windows Credential Manager | |
 | D8 | License | Repo has MIT; WinSerial is Apache-2.0. Check compatibility if code is copied from WinSerial | |
 | D9 | Branching | `feature/*` → `develop` via PR; `develop` → `main` at release (see 10.1) | 2026-11-26 |
+| D10 | Versioning | From the release tag (`vX.Y.Z[-rcN]`), passed to CMake by CI; no bump commits | 2026-11-26 |

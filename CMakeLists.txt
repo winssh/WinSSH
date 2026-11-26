@@ -10,7 +10,15 @@ if(WINSSH_BUILD_TESTS)
     list(APPEND VCPKG_MANIFEST_FEATURES "tests")
 endif()
 
-project(WinSSH VERSION 0.1.0 LANGUAGES CXX)
+# Version comes from the release tag (CI passes -DWINSSH_VERSION=0.2.0 or 0.2.0-rc1 for tag
+# v0.2.0 / v0.2.0-rc1). Local builds are "0.0.0-dev".
+set(WINSSH_VERSION "0.0.0-dev" CACHE STRING "WinSSH version (semver, from the release tag)")
+if(NOT WINSSH_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)(-([0-9A-Za-z.-]+))?$")
+    message(FATAL_ERROR "WINSSH_VERSION '${WINSSH_VERSION}' is not semver (X.Y.Z or X.Y.Z-suffix)")
+endif()
+set(WINSSH_VERSION_NUMERIC "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+
+project(WinSSH VERSION ${WINSSH_VERSION_NUMERIC} LANGUAGES CXX)
 
 if(NOT WIN32)
     message(FATAL_ERROR "WinSSH only builds on Windows")

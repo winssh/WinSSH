@@ -62,6 +62,8 @@ add_library(winssh_core STATIC
     util/Utf8.h
     vault/PasswordVault.cpp
     vault/PasswordVault.h
+    wt/Fragment.cpp
+    wt/Fragment.h
 )
 target_include_directories(winssh_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}"
