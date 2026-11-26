@@ -1,5 +1,7 @@
 #include "app/Bridge.h"
 
+#include "app/RulesSource.h"
+
 #include "console/InputReader.h"
 #include "console/OutputWriter.h"
 #include "highlight/Highlighter.h"
@@ -15,9 +17,10 @@ namespace asio = boost::asio;
 using asio::ip::tcp;
 
 Bridge::Bridge(asio::io_context &io, ssh::Session &session, LIBSSH2_CHANNEL *channel,
-               console::OutputWriter &output, highlight::Highlighter *highlighter, std::string info)
-    : io_(io), session_(session), channel_(channel), output_(output), highlighter_(highlighter),
-      info_(std::move(info)), flushTimer_(io)
+               console::OutputWriter &output, highlight::Highlighter *highlighter, RulesSource *rules,
+               std::string info)
+    : io_(io), session_(session), channel_(channel), output_(output), highlighter_(highlighter), rules_(rules),
+      info_(std::move(info)), flushTimer_(io), rulesTimer_(io)
 {
 }
 
@@ -44,6 +47,7 @@ bool Bridge::Run(console::InputReader &input)
         });
 
     asio::post(io_, [this] { Pump(); });
+    ScheduleRulesCheck();
     io_.run();
     input.Stop();
     io_.restart();
@@ -113,6 +117,35 @@ void Bridge::WriteRemote(std::string_view bytes)
                 FlushHighlighter();
         });
     }
+}
+
+void Bridge::ScheduleRulesCheck()
+{
+    if (!rules_ || !highlighter_)
+        return;
+    rulesTimer_.expires_after(kRulesCheckInterval);
+    rulesTimer_.async_wait([this](const boost::system::error_code &ec) {
+        if (ec || done_)
+            return;
+        if (rules_->Changed())
+            ReloadRules();
+        ScheduleRulesCheck();
+    });
+}
+
+void Bridge::ReloadRules()
+{
+    auto loaded = rules_->Load();
+    std::string text = "highlight rules reloaded: " + std::to_string(loaded.ruleCount) + " rules (" +
+                       (loaded.fileFound ? "" : "file removed, built-in ") + "sets: ";
+    for (size_t i = 0; i < rules_->Sets().size(); ++i)
+        text += (i ? "," : "") + rules_->Sets()[i];
+    text += ")\r\n";
+    for (const auto &m : loaded.messages)
+        text += "  " + m + "\r\n";
+    FlushHighlighter();
+    highlighter_->SetRules(loaded.compiled.matcher, loaded.compiled.styles);
+    WriteLocal(text);
 }
 
 void Bridge::FlushHighlighter()
@@ -234,6 +267,7 @@ void Bridge::Finish(bool ok, std::string error)
     boost::system::error_code ignored;
     session_.Socket().cancel(ignored);
     flushTimer_.cancel();
+    rulesTimer_.cancel();
     work_.reset();
     io_.stop();
 }

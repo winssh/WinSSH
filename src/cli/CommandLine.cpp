@@ -18,6 +18,26 @@ std::optional<int> ParsePort(std::string_view text)
     return value;
 }
 
+// "a, b,,c" -> {"a", "b", "c"}
+std::vector<std::string> SplitList(const std::string &text)
+{
+    std::vector<std::string> out;
+    size_t pos = 0;
+    while (pos <= text.size())
+    {
+        size_t end = text.find(',', pos);
+        if (end == std::string::npos)
+            end = text.size();
+        std::string item = text.substr(pos, end - pos);
+        const auto first = item.find_first_not_of(" \t");
+        const auto last = item.find_last_not_of(" \t");
+        if (first != std::string::npos)
+            out.push_back(item.substr(first, last - first + 1));
+        pos = end + 1;
+    }
+    return out;
+}
+
 ParseResult Fail(std::string message)
 {
     ParseResult r;
@@ -99,6 +119,7 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
     std::optional<std::string> destination;
     std::optional<int> flagPort;
     std::string flagUser;
+    std::optional<Action> special; // --check-rules / --test-rules / --init-rules
 
     for (size_t i = 0; i < args.size(); ++i)
     {
@@ -149,12 +170,48 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             o.highlight = false;
             continue;
         }
+        if (a == "--highlight")
+        {
+            const std::string *v = nextValue();
+            if (!v)
+                return Fail("option --highlight needs rule set names, e.g. default,journal");
+            o.highlightSets = SplitList(*v);
+            if (o.highlightSets.empty())
+                return Fail("option --highlight needs rule set names, e.g. default,journal");
+            continue;
+        }
+        if (a == "--check-rules" || a == "--init-rules")
+        {
+            if (special)
+                return Fail("use only one of --check-rules, --test-rules, --init-rules");
+            special = a == "--check-rules" ? Action::CheckRules : Action::InitRules;
+            continue;
+        }
+        if (a == "--test-rules")
+        {
+            if (special)
+                return Fail("use only one of --check-rules, --test-rules, --init-rules");
+            const std::string *v = nextValue();
+            if (!v)
+                return Fail("option --test-rules needs a text, e.g. --test-rules \"link down at 10.0.0.1\"");
+            special = Action::TestRules;
+            o.testText = *v;
+            continue;
+        }
         if (!a.empty() && a.front() == '-')
             return Fail("unknown option: " + a);
 
         if (destination)
             return Fail("only one destination is supported (remote commands are not supported yet)");
         destination = a;
+    }
+
+    if (special)
+    {
+        if (destination)
+            return Fail("--check-rules, --test-rules and --init-rules do not take a destination");
+        o.action = *special;
+        return {true, o, {}};
     }
 
     if (!destination)
@@ -188,9 +245,15 @@ std::string UsageText()
            "  -p <port>       Port (default 22)\n"
            "  -l <user>       User name\n"
            "  -i <keyfile>    Private key file\n"
+           "  --highlight <sets>   Rule sets to use, comma separated (default: default)\n"
            "  --no-highlight  Turn off keyword highlighting\n"
            "  -V, --version   Show version\n"
            "  -h, --help      Show this help\n"
+           "\n"
+           "Highlight rules (%APPDATA%\\WinSSH\\highlight.json):\n"
+           "  winssh --init-rules             Create a starter rules file\n"
+           "  winssh --check-rules            Validate the rules file and list rule sets\n"
+           "  winssh --test-rules \"<text>\"    Show <text> highlighted with the selected sets\n"
            "\n"
            "In a session, press Ctrl+] then h for local commands (highlighting, info, exit).\n";
 }

@@ -31,13 +31,20 @@ class Session;
 
 namespace winssh::app
 {
+class RulesSource;
+}
+
+namespace winssh::app
+{
 
 class Bridge
 {
 public:
-    // `highlighter` may be null (no highlighting). `info` is shown by the Ctrl+] i command.
+    // `highlighter` may be null (no highlighting). `rules`, if set, is checked every second and the
+    // highlighter is updated when the rules file changes. `info` is shown by the Ctrl+] i command.
     Bridge(boost::asio::io_context &io, ssh::Session &session, LIBSSH2_CHANNEL *channel,
-           console::OutputWriter &output, highlight::Highlighter *highlighter, std::string info);
+           console::OutputWriter &output, highlight::Highlighter *highlighter, RulesSource *rules,
+           std::string info);
 
     // Runs the event loop. Returns true when the session ended normally (remote EOF, or the user
     // chose Ctrl+] x), false when the connection failed (see Error()). Switches the session to
@@ -49,6 +56,8 @@ public:
 
     // Time to wait for more output before showing a held-back partial line.
     static constexpr std::chrono::milliseconds kFlushDelay{10};
+    // How often the rules file is checked for changes.
+    static constexpr std::chrono::milliseconds kRulesCheckInterval{1000};
 
 private:
     void Pump();
@@ -59,15 +68,19 @@ private:
     void WriteRemote(std::string_view bytes);
     void WriteLocal(const std::string &text);
     void FlushHighlighter();
+    void ScheduleRulesCheck();
+    void ReloadRules();
 
     boost::asio::io_context &io_;
     ssh::Session &session_;
     LIBSSH2_CHANNEL *channel_;
     console::OutputWriter &output_;
     highlight::Highlighter *highlighter_;
+    RulesSource *rules_;
     std::string info_;
     EscapeKeys escape_;
     boost::asio::steady_timer flushTimer_;
+    boost::asio::steady_timer rulesTimer_;
     std::optional<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_;
 
     std::string pendingInput_;

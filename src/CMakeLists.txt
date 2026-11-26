@@ -6,8 +6,14 @@ add_library(winssh_core STATIC
     app/Connect.h
     app/EscapeKeys.cpp
     app/EscapeKeys.h
+    app/RulesCommands.cpp
+    app/RulesCommands.h
+    app/RulesSource.cpp
+    app/RulesSource.h
     cli/CommandLine.cpp
     cli/CommandLine.h
+    config/HighlightConfig.cpp
+    config/HighlightConfig.h
     console/Console.cpp
     console/Console.h
     console/InputReader.cpp
@@ -43,7 +49,7 @@ target_compile_definitions(winssh_core PUBLIC
     _WIN32_WINNT=0x0A00   # Windows 10
 )
 target_compile_options(winssh_core PUBLIC /W4 /permissive- /utf-8)
-target_link_libraries(winssh_core PUBLIC Boost::boost libssh2::libssh2 PCRE2::8BIT)
+target_link_libraries(winssh_core PUBLIC Boost::boost libssh2::libssh2 PCRE2::8BIT nlohmann_json::nlohmann_json)
 target_compile_definitions(winssh_core PRIVATE PCRE2_STATIC)
 
 # Application

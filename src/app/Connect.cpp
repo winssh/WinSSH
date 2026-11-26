@@ -3,6 +3,8 @@
 #include "Version.h"
 
 #include "app/Bridge.h"
+#include "app/RulesSource.h"
+#include "config/HighlightConfig.h"
 #include "console/Console.h"
 #include "console/InputReader.h"
 #include "console/OutputWriter.h"
@@ -216,13 +218,15 @@ int RunConnect(const cli::Options &options)
     guard.EnableRawInput();
 
     std::unique_ptr<highlight::Highlighter> highlighter;
+    std::unique_ptr<RulesSource> rules;
     if (options.highlight)
     {
-        auto compiled = highlight::CompileRules(highlight::DefaultRules());
-        for (const auto &e : compiled.errors)
-            PrintError("winssh: highlight " + e + "\r\n");
-        if (compiled.matcher)
-            highlighter = std::make_unique<highlight::Highlighter>(compiled.matcher, compiled.styles);
+        rules = std::make_unique<RulesSource>(config::HighlightConfigPath(), options.highlightSets);
+        auto loaded = rules->Load();
+        for (const auto &m : loaded.messages)
+            PrintError("winssh: highlight " + m + "\r\n");
+        // Created even without rules, so rules added to the file later are picked up.
+        highlighter = std::make_unique<highlight::Highlighter>(loaded.compiled.matcher, loaded.compiled.styles);
     }
 
     const char *cipher = libssh2_session_methods(session.Raw(), LIBSSH2_METHOD_CRYPT_CS);
@@ -234,7 +238,7 @@ int RunConnect(const cli::Options &options)
 
     console::OutputWriter output;
     console::InputReader input;
-    Bridge bridge(io, session, channel, output, highlighter.get(), info);
+    Bridge bridge(io, session, channel, output, highlighter.get(), rules.get(), info);
     const bool ended = bridge.Run(input);
     output.Flush();
     guard.RestoreInput();
