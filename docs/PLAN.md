@@ -2,7 +2,7 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-Status: draft. D1, D3, D4 decided; D2 and D5 pending (see section 11).
+Status: draft. D1–D4 decided; D5 pending (see section 11).
 
 ---
 
@@ -93,19 +93,59 @@ the fallback only if neither library can handle our real targets.
 
 ### 3.2 libssh vs libssh2 (D2, decided by the M0 spike)
 
-Check each against real targets (CB2 dev unit, a Linux server, a network switch if available):
+Check each against real targets (CB2 dev unit, a Linux server, a network switch if available).
 
-| Check | libssh | libssh2 |
+Spike code: `spike/ssh-lib/` (two console programs running the same checks; see its README).
+
+**Run 1 — 2026-11-26.** Target: Linux dev server (Ubuntu 22.04, OpenSSH 8.9p1), user key
+ed25519 (OpenSSH format, loaded in the Windows OpenSSH agent and also present as a file).
+Libraries from vcpkg (baseline `38a77589`), x64-windows, OpenSSL 3.6 backend for both.
+
+| Check | libssh 0.12.0 | libssh2 1.11.1 |
 |---|---|---|
-| ed25519 / ECDSA / RSA-SHA2 keys | | |
-| OpenSSH-format private keys, passphrase | | |
-| Windows OpenSSH agent (`\\.\pipe\openssh-ssh-agent`) and Pageant | | |
-| keyboard-interactive auth | | |
-| `known_hosts` read/write | | |
-| Parse `~/.ssh/config` | | |
-| Legacy algorithms (old switches: `ssh-rsa`, `diffie-hellman-group14-sha1`) | | |
-| Non-blocking API that fits `boost::asio` | | |
-| vcpkg port, license (static link OK?) | | |
+| Connect + handshake | ✅ ~160–240 ms | ✅ ~115–155 ms |
+| Negotiated kex / host key (defaults) | `sntrup761x25519-sha512` / `ssh-ed25519` | `curve25519-sha256` / `ecdsa-sha2-nistp256` (prefers ECDSA; set `libssh2_session_method_pref` to put ed25519 first) |
+| Cipher | chacha20-poly1305 | chacha20-poly1305 |
+| `known_hosts` check | ✅ built-in (`ssh_session_is_known_server`) | ✅ `libssh2_knownhost_*` (read file + check; we write the "add/update" logic) |
+| ed25519 key from file (no passphrase) | ✅ | ✅ |
+| **Windows OpenSSH agent** (`\\.\pipe\openssh-ssh-agent`) | ❌ no support — agent code uses Unix sockets only; `SSH_AUTH_SOCK` pointing to the pipe fails | ✅ works out of the box (Pageant was not running, so this was the OpenSSH pipe) |
+| PTY `xterm-256color` + `window-change` resize | ✅ | ✅ |
+| UTF-8 passthrough, remote exit code | ✅ | ✅ |
+| Parse `~/.ssh/config` | ✅ `ssh_options_parse_config` | ❌ not provided (our code; only needed for `--import-ssh-config`) |
+| Legacy algorithms (`group14-sha1`, `group1-sha1`, `ssh-rsa`, `aes128-cbc`) | ✅ accepted by options | ✅ in supported list |
+| Non-blocking API for `boost::asio` | ✅ `ssh_get_fd` + `ssh_set_blocking(0)`; note `ssh_channel_read_timeout` returns `SSH_AGAIN` (not 0) on timeout in 0.12 | ✅ socket is ours; `LIBSSH2_ERROR_EAGAIN` + `async_wait` (same idea as WinSerial's experiment) |
+| License | LGPL-2.1 (must ship as DLL to stay simple with an MIT app) | BSD-3-Clause (static link fine) |
+| keyboard-interactive | not tested (target has it off) | not tested |
+| Passphrase-protected key file | not tested | not tested |
+| CB2 unit | ✅ see run 2 | ✅ see run 2 |
+| Network switch | not tested | not tested |
+
+**Run 2 — 2026-11-26.** Target: CB2 unit E13F8 (`fc-cloudbox` distro, Yocto mickledore, kernel
+6.1.36-imx8mp, aarch64), **OpenSSH 9.3** (not Dropbear), login shell `/bin/sh`, user `root`, same ed25519 key.
+
+| Check | libssh 0.12.0 | libssh2 1.11.1 |
+|---|---|---|
+| Connect | ✅ 268 ms | ✅ 275 ms |
+| Negotiated kex / host key | `sntrup761x25519-sha512` / `ssh-ed25519` | `curve25519-sha256` / `ecdsa-sha2-nistp256` |
+| `known_hosts` check | ✅ match | ✅ match |
+| Agent auth | ❌ (same as run 1) | ✅ 67 ms |
+| Key file auth | ✅ | ✅ |
+| PTY + resize, UTF-8, exit code | ✅ | ✅ |
+
+Same picture as run 1. Note for M1: libssh2 matched `known_hosts` only because the file also holds an
+ECDSA entry for the unit. Users whose `known_hosts` has only the ed25519 key (OpenSSH's default choice)
+would get a false "unknown host". **Set the host-key preference to put `ssh-ed25519` first**
+(`libssh2_session_method_pref(LIBSSH2_METHOD_HOSTKEY, ...)`) so WinSSH and `ssh.exe` agree.
+
+**Result:** both libraries cover the core session (handshake, host key, key auth, PTY, resize, UTF-8,
+exit code). The deciding difference is the **Windows OpenSSH agent**: libssh2 uses it directly, libssh
+would need our own agent client over the named pipe. libssh2's license is also simpler for an MIT app.
+libssh's extras (`~/.ssh/config` parsing, newer kex, ed25519 host key first) are nice but either small
+for us to add or only a preference setting.
+
+**Decision D2 (2026-11-26): libssh2.** CB2 checked in run 2 (pass). Still to check in M1:
+a network switch with legacy algorithms, keyboard-interactive, and a passphrase-protected key.
+If one of these fails, revisit D2.
 
 ### 3.3 Module layout (no more single 800-line file)
 
@@ -372,15 +412,17 @@ Each milestone ends with something runnable.
 
 ### M0 — Spike and skeleton (decisions locked)
 
-- [ ] Spike: connect to 3 real targets with libssh and libssh2 (table 3.2); fall back to Option B
-      only if both fail on a target.
-- [ ] Decide D2 (library) from the spike results and record it in section 11.
+- [x] Spike: libssh vs libssh2 against a Linux dev server (table 3.2, run 1). CB2 / switch checks
+      moved to M1.
+- [x] Decide D2 (library): libssh2.
 - [ ] Repo skeleton: CMake + vcpkg manifest, `src/` layout, `Version.h.in`, icon, `.gitignore`.
 - [ ] Unit test framework (Catch2 or GoogleTest) wired into CTest.
 - [ ] GitHub Actions: build Release on `windows-latest`, run tests.
 
 ### M1 — Basic SSH session
 
+- [ ] Verify libssh2 on a network switch (legacy algorithms), keyboard-interactive, passphrase key (CB2 done in spike run 2).
+- [ ] Host-key preference: `ssh-ed25519` first, then ECDSA, RSA-SHA2 (match `ssh.exe` and existing `known_hosts`).
 - [ ] CLI: `winssh user@host[:port]`, `-i keyfile`, `-l user`, `--version`, `--help`.
 - [ ] Auth: password, public key (with passphrase), agent, keyboard-interactive.
 - [ ] Host-key check against `known_hosts`, first-connect prompt with fingerprint.
@@ -446,7 +488,7 @@ Each milestone ends with something runnable.
 | # | Topic | Decision | Date |
 |---|---|---|---|
 | D1 | In-process library (A) vs wrap `ssh.exe` (B) | **A** — in-process library; B only as fallback | 2026-11-26 |
-| D2 | libssh vs libssh2 | Pending M0 spike (table 3.2) | |
+| D2 | libssh vs libssh2 | **libssh2** — Windows OpenSSH agent works, BSD-3 license (spike run 1, section 3.2) | 2026-11-26 |
 | D3 | Escape key | **`Ctrl+]`**, configurable | 2026-11-26 |
 | D4 | Picker UI | **TUI picker** for choosing; **Win32 dialog** only for new/edit profile (section 6.3) | 2026-11-26 |
 | D5 | Regex engine: PCRE2 vs RE2 | Pending M2 | |
