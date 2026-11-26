@@ -1,0 +1,39 @@
+// WinSSH resources. UTF-8 source.
+#pragma code_page(65001)
+
+#include <winres.h>
+
+#include "resource.h"
+#include "Version.h"
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+// Icon with the lowest ID is used as the application icon.
+IDI_WINSSH ICON "../../assets/icons/WinSSH.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION APP_VERSION_RC
+ PRODUCTVERSION APP_VERSION_RC
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "FileDescription", "WinSSH - SSH terminal for Windows"
+            VALUE "FileVersion", APP_VERSION_FULL
+            VALUE "InternalName", "WinSSH"
+            VALUE "OriginalFilename", "WinSSH.exe"
+            VALUE "ProductName", "WinSSH"
+            VALUE "ProductVersion", APP_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

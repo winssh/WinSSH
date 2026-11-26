@@ -151,7 +151,10 @@ If one of these fails, revisit D2.
 
 ```
 src/
-  main.cpp              CLI parsing, top-level flow
+  main.cpp              top-level flow
+  cli/                  command-line parsing
+  util/                 small helpers (UTF-8 conversion, ...)
+  resources/            icon, VERSIONINFO, application manifest
   console/              raw VT console in/out, resize events, title
   ssh/                  session, auth, channel, host-key check, keepalive
   highlight/            VT-aware tokenizer, rule engine, built-in rule sets
@@ -277,7 +280,8 @@ default stays `strict`.
 ```
 winssh                         → TUI picker (profiles + recent), see 6.3
 winssh user@host[:port]        → quick connect, added to history
-winssh -p cb2-lab              → open a profile
+winssh -p 2222 -l root host    → OpenSSH-style flags: -p port, -l user, -i keyfile
+winssh cb2-lab                 → open a profile (a destination that matches a profile id)
 winssh --save cb2-lab user@host → create profile from args
 winssh --list                  → list profiles
 winssh --import-ssh-config     → turn Host entries from ~/.ssh/config into profiles
@@ -415,15 +419,18 @@ Each milestone ends with something runnable.
 - [x] Spike: libssh vs libssh2 against a Linux dev server (table 3.2, run 1). CB2 / switch checks
       moved to M1.
 - [x] Decide D2 (library): libssh2.
-- [ ] Repo skeleton: CMake + vcpkg manifest, `src/` layout, `Version.h.in`, icon, `.gitignore`.
-- [ ] Unit test framework (Catch2 or GoogleTest) wired into CTest.
-- [ ] GitHub Actions: build Release on `windows-latest`, run tests.
+- [x] Repo skeleton: CMake + `CMakePresets.json` + vcpkg manifest (`x64-windows-static`, static CRT,
+      single `.exe`), `src/` with `winssh_core` library + `WinSSH` app, `cmake/Version.h.in`,
+      placeholder icon, VERSIONINFO, app manifest (UTF-8 code page, Common Controls v6, PerMonitorV2).
+- [x] Unit tests: Catch2 v3 via CTest (`ctest --preset release`); first tests for CLI parsing and UTF-8.
+- [ ] GitHub Actions: `.github/workflows/ci.yml` builds Release on `windows-latest`, runs tests,
+      uploads `WinSSH.exe` — written, not yet run on GitHub (needs a push).
 
 ### M1 — Basic SSH session
 
 - [ ] Verify libssh2 on a network switch (legacy algorithms), keyboard-interactive, passphrase key (CB2 done in spike run 2).
 - [ ] Host-key preference: `ssh-ed25519` first, then ECDSA, RSA-SHA2 (match `ssh.exe` and existing `known_hosts`).
-- [ ] CLI: `winssh user@host[:port]`, `-i keyfile`, `-l user`, `--version`, `--help`.
+- [x] CLI parsing: `[user@]host[:port]` (IPv6 in brackets), `-p port`, `-l user`, `-i keyfile`, `-V`, `-h` (done in M0 skeleton).
 - [ ] Auth: password, public key (with passphrase), agent, keyboard-interactive.
 - [ ] Host-key check against `known_hosts`, first-connect prompt with fingerprint.
 - [ ] PTY + shell, raw console input, resize → `window-change`, UTF-8.
