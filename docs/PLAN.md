@@ -504,7 +504,8 @@ main thread (boost::asio io_context)                 input thread
       (exit code 0), `Ctrl+]` twice sends it. `--no-highlight` flag.
 - [x] Tests: unit tests for scanner, highlighter, rules, escape keys (48 total); e2e `highlight.txt`
       passes on the Ubuntu server and CB2 (colors on, off, on again; `Ctrl+]` commands).
-- [ ] Manual check in Windows Terminal: no visible typing lag, `ls --color` / `ip -c a` colors kept.
+- [x] Manual check in Windows Terminal on CB2 (2026-11-26): `ls --color` and `ip -c a` colors kept, no
+      broken sequences, `LOWER_UP` not matched (whole words only). Typing lag: not reported.
 - **Done when:** highlighted output never breaks server colors or full-screen apps; no visible typing lag.
 
 ### M3 — Custom highlight rules (G5)
