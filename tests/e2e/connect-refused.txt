@@ -1,0 +1,5 @@
+# A closed or filtered port gives a clear error and exit code 255
+# ("cannot connect ... refused" or "timed out" after 15 s, depending on the host's firewall).
+#   .\tests\e2e\run.ps1 -Target fc@10.0.0.111:1 -Script tests\e2e\connect-refused.txt
+expect 10.0.0.111 port 1
+exit 255
