@@ -16,3 +16,12 @@ target_link_libraries(winssh_tests PRIVATE winssh_core Catch2::Catch2WithMain)
 
 include(Catch)
 catch_discover_tests(winssh_tests)
+
+# Release tag rules (scripts/TagVersion.psm1), plain PowerShell test script.
+find_program(WINSSH_PWSH NAMES pwsh)
+if(WINSSH_PWSH)
+    add_test(NAME tag-version-rules
+             COMMAND "${WINSSH_PWSH}" -NoProfile -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/TagVersion.Tests.ps1")
+else()
+    message(STATUS "pwsh not found: tag-version-rules test skipped")
+endif()
