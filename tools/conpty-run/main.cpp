@@ -9,6 +9,7 @@
 //   expect-raw <text>  same, but search the raw output (escapes allowed, e.g. \e[?1049h)
 //   resize <C>x<R>     resize the pseudo console
 //   sleep <ms>
+//   copy <src> <dst>   overwrite a file (e.g. a config file the program watches)
 //   exit <code>        wait for the program to exit and check its exit code
 #include <windows.h>
 
@@ -292,6 +293,17 @@ int wmain(int argc, wchar_t **argv)
             const auto x = arg.find('x');
             const COORD size{static_cast<SHORT>(std::stoi(arg.substr(0, x))), static_cast<SHORT>(std::stoi(arg.substr(x + 1)))};
             ok = SUCCEEDED(ResizePseudoConsole(pc, size));
+        }
+        else if (cmd == "copy")
+        {
+            // copy <src> <dst>: rewrites dst with src's content (new timestamp), e.g. to change a
+            // config file while the program runs. Paths are relative to the current directory.
+            const auto sp2 = arg.find(' ');
+            std::ifstream in(Widen(arg.substr(0, sp2)), std::ios::binary);
+            std::ofstream out(Widen(sp2 == std::string::npos ? "" : arg.substr(sp2 + 1)),
+                              std::ios::binary | std::ios::trunc);
+            out << in.rdbuf();
+            ok = in.good() && out.good();
         }
         else if (cmd == "sleep")
         {

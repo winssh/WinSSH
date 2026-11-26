@@ -1,0 +1,21 @@
+# Custom rules from highlight.json and reloading them during a session (M3).
+#   .\tests\e2e\run.ps1 -Target fc@10.0.0.111 -Script tests\e2e\custom-rules.txt -ConfigFixture tests\e2e\rules\custom.json
+send echo READY_$((1+1))\r
+expect READY_2
+
+# The file's "default" set replaces the built-in one: marker magenta (35), "fault" left plain
+# (with the built-in rules it would be red: \e[31mfault)
+send printf '%s %s\n' WINSSH_MARK fault; echo C_$((2+2))\r
+expect C_4
+expect-raw \e[35mWINSSH_MARK \e[mfault
+
+# Rewrite the file: WinSSH notices within a second and switches the marker to green (32)
+copy tests/e2e/rules/reloaded.json build/e2e-config/highlight.json
+expect highlight rules reloaded: 1 rules
+send printf '%s\n' WINSSH_MARK; echo R_$((3+3))\r
+expect R_6
+expect-raw \e[32mWINSSH_MARK
+
+send exit\r
+expect closed.
+exit 0
