@@ -1,0 +1,9 @@
+{
+  "name": "winssh-spike-ssh-lib",
+  "version": "0.0.0",
+  "dependencies": [
+    "libssh",
+    "libssh2"
+  ],
+  "builtin-baseline": "38a77589121bd7ec6487927b79c191a75d4ebdd6"
+}
