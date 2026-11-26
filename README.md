@@ -125,10 +125,19 @@ so `WinSSH.exe` runs without extra DLLs. Local builds report version `0.0.0-dev`
 Merge `develop` into `main`, then tag `main`; the release workflow builds, tests and publishes
 the installer, the portable zip and `SHA256SUMS.txt`. The version comes from the tag.
 
+`scripts\tag.ps1` picks the next tag from the [Conventional Commits](https://www.conventionalcommits.org)
+since the last release (`feat:` → minor, otherwise patch; `!` / `BREAKING CHANGE` → major, or minor
+while on 0.x) and checks that the commit is on `main` and its CI is green:
+
 ```powershell
-git tag v0.2.0-rc1; git push origin v0.2.0-rc1     # pre-release
-git tag v0.2.0; git push origin v0.2.0             # release
+.\scripts\tag.ps1 -DryRun          # show the tag that would be created, and why
+.\scripts\tag.ps1 -Rc -Push        # next release candidate, e.g. v0.2.0-rc1, rc2, ...
+.\scripts\tag.ps1 -Push            # the release itself, e.g. v0.2.0
+.\scripts\tag.ps1 -Bump major -Push / -Version 1.0.0 -Push   # choose the version yourself
 ```
+
+Without `-Push` the tag is only created locally. The same is available on GitHub: Actions →
+**Tag release** → Run workflow (dry run by default); it creates the tag and runs the release.
 
 To package locally (needs Inno Setup 6):
 
