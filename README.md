@@ -4,25 +4,39 @@
 
 **SSH terminal for Windows, built to run as a Windows Terminal tab, with keyword highlighting you can configure.**
 
-> Status: early development (milestone M3). Interactive SSH sessions with keyword highlighting and
-> custom rules work; profiles and Windows Terminal integration come next.
+> Status: early development (milestone M4). Interactive SSH sessions, keyword highlighting with
+> custom rules, and profiles work; the connection picker and Windows Terminal integration come next.
 > See [docs/PLAN.md](docs/PLAN.md) for goals, design and milestones.
 
 ## Usage
 
 ```text
-winssh                          Open the connection picker
 winssh [options] [user@]host[:port]
+winssh [options] <profile>
 
-  -p <port>       Port (default 22)
-  -l <user>       User name
-  -i <keyfile>    Private key file
-  --highlight <sets>  Rule sets to use, comma separated (default: default)
-  --no-highlight  Turn off keyword highlighting
-  --init-rules / --check-rules / --test-rules "<text>"   Manage highlight rules
-  -V, --version   Show version
-  -h, --help      Show this help
+  -p <port>               Port (default 22)
+  -l <user>               User name
+  -i <keyfile>            Private key file
+  --highlight <sets>      Highlight rule sets, comma separated (default: default)
+  --no-highlight          Turn off keyword highlighting
+  --keepalive <sec>       Send a keepalive every <sec> seconds (0 = off)
+  --host-key-policy <p>   strict (default), accept-new, or warn-on-change
+  --legacy-algorithms     Allow ssh-rsa and SHA-1 key exchange (old devices)
+  -V, --version           Show version
+  -h, --help              Show this help
 ```
+
+### Profiles
+
+```powershell
+winssh --save cb2-lab --highlight default,journal root@10.0.0.108   # save
+winssh cb2-lab                                                       # connect
+winssh --list                                                        # profiles and recent connections
+winssh --import-ssh-config                                           # from ~/.ssh/config
+```
+
+Passwords can be saved in Windows Credential Manager (`--save-password`), never in a file.
+See [docs/profiles.md](docs/profiles.md).
 
 ### In a session
 
@@ -87,11 +101,12 @@ src/
   main.cpp          entry point
   app/              session flow (connect, host key, auth, shell) and the console <-> channel bridge
   cli/              command-line parsing
-  config/           settings files (highlight.json)
+  config/           settings files (highlight.json, profiles.json, history.json), ~/.ssh/config import
   console/          console modes, raw input thread, UTF-8 safe output, prompts
   highlight/        VT scanner, PCRE2 rule engine, highlighter
   ssh/              libssh2 session, known_hosts, authentication
   util/             small helpers (UTF-8, base64, paths)
+  vault/            saved passwords in Windows Credential Manager
   resources/        icon, version info, application manifest
 tests/              Catch2 unit tests (run with CTest)
 tests/e2e/          end-to-end scripts against a real SSH host
@@ -101,7 +116,7 @@ spike/              throwaway M0 experiments (not part of the build)
 docs/PLAN.md        plan, decisions, milestones
 ```
 
-More modules (`credentials/`, `wt/`, ...) are added in later milestones.
+More modules (`picker/`, `wt/`, ...) are added in later milestones.
 
 ### End-to-end tests
 

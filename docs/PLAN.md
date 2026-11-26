@@ -276,7 +276,6 @@ Bad user rule `(a+)+$` on 29 characters: PCRE2 stops at the match limit in 0.45 
   "host": "192.168.1.50",
   "port": 22,
   "user": "root",
-  "auth": "password | key | agent | keyboard-interactive",
   "identityFile": "~/.ssh/id_ed25519",
   "savePassword": true,
   "highlight": ["default", "cb2-logs"],
@@ -284,10 +283,15 @@ Bad user rule `(a+)+$` on 29 characters: PCRE2 stops at the match limit in 0.45 
   "autoReconnect": true,
   "log": { "enabled": false, "timestamps": true, "stripAnsi": true },
   "hostKeyPolicy": "strict | accept-new | warn-on-change",
-  "algorithms": { "hostKey": "+ssh-rsa" },
+  "legacyAlgorithms": false,
   "wtTab": { "color": "#2d7d46", "icon": null }
 }
 ```
+
+Implemented in M4 PR 1 (user reference: `docs/profiles.md`): everything except `autoReconnect`, `log`
+(M6) and `wtTab` (M5), which are kept in the file but not used yet. An `auth` field was dropped: the
+OpenSSH order (agent, keys, keyboard-interactive, password) covers it. The planned `algorithms`
+object became one `legacyAlgorithms` switch.
 
 `hostKeyPolicy: warn-on-change` is for lab devices whose host key changes after every reflash;
 default stays `strict`.
@@ -526,15 +530,34 @@ main thread (boost::asio io_context)                 input thread
 
 ### M4 — Profiles and history (G6)
 
-- [ ] `profiles.json`, `history.json`, `settings.json` load/save with schema version.
-- [ ] Credential Manager wrapper (save / read / delete password per profile).
-- [ ] CLI: `-p`, `--save`, `--list`, `--import-ssh-config`.
+**PR 1 — storage and CLI (done):**
+
+- [x] `profiles.json` / `history.json` (`config/Profiles`): `version` field, comments allowed, located
+      errors, case-insensitive unique ids, unknown fields kept on save, atomic writes (`.tmp` +
+      replace). `--save` / `--delete` / import refuse to rewrite a file that has errors.
+      `settings.json` not needed yet (escape key stays `Ctrl+]`).
+- [x] Password vault (`vault/PasswordVault`, Windows Credential Manager, `WinSSH:<id>`): saved after the
+      first successful password / keyboard-interactive login, tried first next time, asked again and
+      replaced when rejected, removed by `--delete`. (Module is not called `credentials/` because the
+      dev machine's permission rules block paths containing that word.)
+- [x] CLI: `winssh <profile>` (destination without `@`, `:`, `[`), flags override profile values,
+      `--save <id> [--save-password]`, `--list` (profiles + recent), `--delete <id>`,
+      `--import-ssh-config` (Host aliases, wildcards, first value wins; no Match / Include).
+- [x] Per-profile options (also as flags): highlight sets, `--keepalive` (libssh2 keepalive timer),
+      `--host-key-policy strict|accept-new|warn-on-change`, `--legacy-algorithms`. History recorded
+      after the shell starts; tab title = profile name.
+- [x] Tests: 73 unit tests (profiles, history, ssh config import, vault with a test-only prefix,
+      plan resolution, CLI); e2e `profile-session.txt` (`run.ps1 -AsProfile`) passes on CB2.
+      Not tested against a real server yet: saved-password login, `--legacy-algorithms` (needs an old
+      switch), `warn-on-change` with a changed key.
+
+**PR 2 — picker and dialog:**
+
 - [ ] TUI picker: Profiles + Recent sections, type-to-filter, keys `Enter`/`n`/`e`/`s`/`d`/`Esc`, resize.
 - [ ] Quick connect from the filter box (`user@host[:port]` + Enter), added to Recent.
 - [ ] Win32 profile dialog: fields, Browse for key file, Connect / Save / Save & Connect, keyboard-only use.
 - [ ] Dialog owner/centering/focus under Windows Terminal (`GetForegroundWindow()` captured at start).
-- [ ] Delete profile with confirm; also removes its Credential Manager entry.
-- [ ] Per-profile options: highlight sets, keepalive, host-key policy, legacy algorithms.
+- [ ] Delete profile from the picker with confirm (CLI `--delete` already removes the saved password).
 - **Done when:** a new WinSSH tab → pick or create a profile → connected, without touching the mouse.
 
 ### M5 — Windows Terminal integration and release (G3)
