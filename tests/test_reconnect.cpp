@@ -102,7 +102,7 @@ TEST_CASE("Reconnect plan: profile value, flag override, default keepalive", "[r
     CHECK(quick.keepAliveSec == app::kReconnectKeepAliveSec);
 }
 
-TEST_CASE("Saving with --reconnect stores autoReconnect; the form keeps it", "[reconnect]")
+TEST_CASE("Saving with --reconnect stores autoReconnect, and the form keeps it", "[reconnect]")
 {
     auto p = app::ProfileFromOptions(Parse({"--save", "cb2", "--reconnect", "root@10.0.0.108"}), nullptr);
     CHECK(p.autoReconnect);
