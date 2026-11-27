@@ -139,5 +139,36 @@ function Get-NextReleaseTag {
     @{ Tag = $tag; Version = $versionText; Reason = $reason; LastRelease = $lastText }
 }
 
+function Get-CiSummary {
+    <#
+      Summarizes GitHub check runs of a commit (objects with name, status, conclusion).
+      Returns @{ Green = $true/$false; Text = "..." }. Runs with the same name (e.g. the push and
+      the pull request run of one workflow) are grouped: "Build and test (2 runs): in progress".
+      Green = every run completed with success, skipped or neutral. No runs: not green.
+    #>
+    param([AllowEmptyCollection()][object[]]$CheckRuns = @())
+    $runs = @($CheckRuns | Where-Object { $_ })
+    if ($runs.Count -eq 0) { return @{ Green = $false; Text = 'no checks found' } }
+
+    $okConclusions = @('success', 'skipped', 'neutral')
+    $state = {
+        param($r)
+        if ($r.status -ne 'completed') { ("$($r.status)" -replace '_', ' ') }
+        else { "$($r.conclusion)" -replace '_', ' ' }
+    }
+    $isOk = { param($r) $r.status -eq 'completed' -and $okConclusions -contains $r.conclusion }
+
+    $bad = @($runs | Where-Object { -not (& $isOk $_) })
+    if ($bad.Count -eq 0) {
+        return @{ Green = $true; Text = "green ($($runs.Count) run$(if ($runs.Count -ne 1) { 's' }))" }
+    }
+    $parts = foreach ($g in ($bad | Group-Object -Property name)) {
+        $states = @($g.Group | ForEach-Object { & $state $_ } | Sort-Object -Unique)
+        $runsText = if ($g.Count -gt 1) { " ($($g.Count) runs)" } else { '' }
+        "$($g.Name)$runsText`: $($states -join ', ')"
+    }
+    @{ Green = $false; Text = "not green: $($parts -join '; ')" }
+}
+
 Export-ModuleMember -Function ConvertTo-ReleaseVersion, Format-ReleaseTag, Get-VersionSortKey, Get-ReleaseTags,
-    Get-BumpKind, Get-NextReleaseTag
+    Get-BumpKind, Get-NextReleaseTag, Get-CiSummary
