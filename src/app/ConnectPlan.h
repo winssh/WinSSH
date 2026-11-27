@@ -24,7 +24,11 @@ struct ConnectPlan
     config::HostKeyPolicy hostKeyPolicy = config::HostKeyPolicy::Strict;
     bool legacyAlgorithms = false;
     bool savePassword = false;
+    bool reconnect = false; // reconnect when the connection drops
 };
+
+// Keepalive used for reconnecting sessions when none is set, so a dead connection is noticed.
+constexpr int kReconnectKeepAliveSec = 15;
 
 // A destination without '@', ':' or '[' that matches a profile id (case-insensitive) uses that
 // profile; flags given on the command line override its values. Otherwise the destination is a host.

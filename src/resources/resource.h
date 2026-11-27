@@ -21,3 +21,4 @@
 #define IDC_PF_ERROR 214
 #define IDC_PF_CONNECT 215
 #define IDC_PF_SAVE 216
+#define IDC_PF_RECONNECT 217

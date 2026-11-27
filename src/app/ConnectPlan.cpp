@@ -23,6 +23,7 @@ ConnectPlan ResolveConnect(const cli::Options &o, const std::vector<config::Prof
         plan.hostKeyPolicy = p->hostKeyPolicy;
         plan.legacyAlgorithms = p->legacyAlgorithms;
         plan.savePassword = p->savePassword;
+        plan.reconnect = p->autoReconnect;
     }
     else
     {
@@ -46,6 +47,12 @@ ConnectPlan ResolveConnect(const cli::Options &o, const std::vector<config::Prof
         plan.hostKeyPolicy = config::ParseHostKeyPolicy(*o.hostKeyPolicy).value_or(config::HostKeyPolicy::Strict);
     if (o.legacyAlgorithms)
         plan.legacyAlgorithms = true;
+    if (o.reconnect)
+        plan.reconnect = *o.reconnect;
+    // A dead connection (device rebooted without closing TCP) is only noticed when something is
+    // sent; keepalives make that happen. Explicit --keepalive 0 is respected.
+    if (plan.reconnect && plan.keepAliveSec == 0 && !o.keepAliveSec)
+        plan.keepAliveSec = kReconnectKeepAliveSec;
     plan.highlight = o.highlight;
     plan.identityFile = util::ExpandHome(plan.identityFile);
     if (plan.displayName.empty())
@@ -75,6 +82,8 @@ config::Profile ProfileFromOptions(const cli::Options &o, const config::Profile 
         p.legacyAlgorithms = true;
     if (o.savePassword)
         p.savePassword = true;
+    if (o.reconnect)
+        p.autoReconnect = *o.reconnect;
     return p;
 }
 

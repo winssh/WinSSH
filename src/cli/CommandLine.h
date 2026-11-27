@@ -61,6 +61,7 @@ struct Options
     std::optional<int> keepAliveSec;      // --keepalive <sec>
     std::optional<std::string> hostKeyPolicy; // --host-key-policy strict|accept-new|warn-on-change
     bool legacyAlgorithms = false;        // --legacy-algorithms
+    std::optional<bool> reconnect;        // --reconnect / --no-reconnect
 
     bool highlight = true;                             // --no-highlight turns it off
     std::vector<std::string> highlightSets{"default"}; // --highlight a,b

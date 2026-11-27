@@ -35,6 +35,7 @@ EscapeResult EscapeKeys::Feed(std::string_view keys)
         case '?': r.commands.push_back(Command::Help); break;
         case 'f': r.commands.push_back(Command::ToggleHighlight); break;
         case 'i': r.commands.push_back(Command::Info); break;
+        case 'r': r.commands.push_back(Command::Reconnect); break;
         case 'x': r.commands.push_back(Command::Exit); break;
         default: r.commands.push_back(Command::Unknown); break;
         }
@@ -48,6 +49,7 @@ std::string EscapeKeys::HelpText()
            "  h  this help\r\n"
            "  f  toggle keyword highlighting\r\n"
            "  i  connection info\r\n"
+           "  r  reconnect now\r\n"
            "  x  disconnect and exit\r\n"
            "  Ctrl+]  send Ctrl+] to the server\r\n";
 }

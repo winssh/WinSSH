@@ -10,6 +10,8 @@ add_library(winssh_core STATIC
     app/EscapeKeys.h
     app/PickerFlow.cpp
     app/PickerFlow.h
+    app/Reconnect.cpp
+    app/Reconnect.h
     app/ProfileCommands.cpp
     app/ProfileCommands.h
     app/RulesCommands.cpp

@@ -30,6 +30,13 @@ public:
     // an incomplete escape sequence at the end is kept until the next Feed().
     void Feed(std::string_view bytes);
 
+    // Forgets a half-received escape sequence (e.g. when the connection was replaced).
+    void Reset()
+    {
+        state_ = State::Ground;
+        seq_.clear();
+    }
+
     // True while an escape sequence is incomplete.
     bool InSequence() const { return state_ != State::Ground; }
 

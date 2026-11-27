@@ -33,6 +33,7 @@ struct Profile
     int keepAliveSec = 0;               // 0 = off
     HostKeyPolicy hostKeyPolicy = HostKeyPolicy::Strict;
     bool legacyAlgorithms = false;      // allow ssh-rsa / SHA-1 key exchange for old devices
+    bool autoReconnect = false;         // reconnect when the connection drops (device reboot)
     std::string extraJson;              // fields WinSSH does not know yet, kept when saving
 };
 

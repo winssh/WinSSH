@@ -111,6 +111,7 @@ void Load(HWND dlg, const ProfileForm &f)
     SetText(dlg, IDC_PF_KEEPALIVE, f.keepAlive);
     ::CheckDlgButton(dlg, IDC_PF_SAVEPW, f.savePassword ? BST_CHECKED : BST_UNCHECKED);
     ::CheckDlgButton(dlg, IDC_PF_LEGACY, f.legacyAlgorithms ? BST_CHECKED : BST_UNCHECKED);
+    ::CheckDlgButton(dlg, IDC_PF_RECONNECT, f.autoReconnect ? BST_CHECKED : BST_UNCHECKED);
 
     SetCue(dlg, IDC_PF_NAME, L"same as ID");
     SetCue(dlg, IDC_PF_USER, L"your Windows user name");
@@ -140,6 +141,7 @@ void Read(HWND dlg, ProfileForm &f)
     f.keepAlive = GetText(dlg, IDC_PF_KEEPALIVE);
     f.savePassword = ::IsDlgButtonChecked(dlg, IDC_PF_SAVEPW) == BST_CHECKED;
     f.legacyAlgorithms = ::IsDlgButtonChecked(dlg, IDC_PF_LEGACY) == BST_CHECKED;
+    f.autoReconnect = ::IsDlgButtonChecked(dlg, IDC_PF_RECONNECT) == BST_CHECKED;
     f.password = GetText(dlg, IDC_PF_PASSWORD);
     const auto sel = ::SendDlgItemMessageW(dlg, IDC_PF_POLICY, CB_GETCURSEL, 0, 0);
     f.hostKeyPolicy = sel == 1   ? config::HostKeyPolicy::AcceptNew

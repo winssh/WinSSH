@@ -8,6 +8,7 @@ add_executable(winssh_tests
     test_highlight.cpp
     test_picker.cpp
     test_profiles.cpp
+    test_reconnect.cpp
     test_rules.cpp
     test_utf8.cpp
     test_wt.cpp

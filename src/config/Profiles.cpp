@@ -18,7 +18,8 @@ using nlohmann::json;
 
 const std::set<std::string> kKnownFields = {"id",           "name",          "host",         "port",
                                             "user",         "identityFile",  "savePassword", "highlight",
-                                            "keepAliveSec", "hostKeyPolicy", "legacyAlgorithms"};
+                                            "keepAliveSec", "hostKeyPolicy", "legacyAlgorithms",
+                                            "autoReconnect"};
 
 bool EqualsNoCase(std::string_view a, std::string_view b)
 {
@@ -118,7 +119,8 @@ ProfileFile ParseProfiles(std::string_view text)
                   Field(j, "identityFile", p.identityFile, isStr, "a string", where, pf.errors) &&
                   Field(j, "savePassword", p.savePassword, isBool, "true or false", where, pf.errors) &&
                   Field(j, "keepAliveSec", p.keepAliveSec, isInt, "a number", where, pf.errors) &&
-                  Field(j, "legacyAlgorithms", p.legacyAlgorithms, isBool, "true or false", where, pf.errors);
+                  Field(j, "legacyAlgorithms", p.legacyAlgorithms, isBool, "true or false", where, pf.errors) &&
+                  Field(j, "autoReconnect", p.autoReconnect, isBool, "true or false", where, pf.errors);
         if (!ok)
             continue;
         if (j.contains("highlight"))
@@ -220,6 +222,8 @@ std::string SerializeProfiles(const std::vector<Profile> &profiles)
             j["hostKeyPolicy"] = ToString(p.hostKeyPolicy);
         if (p.legacyAlgorithms)
             j["legacyAlgorithms"] = true;
+        if (p.autoReconnect)
+            j["autoReconnect"] = true;
         if (!p.extraJson.empty())
         {
             const json extra = json::parse(p.extraJson, nullptr, false);

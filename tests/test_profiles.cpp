@@ -62,7 +62,8 @@ TEST_CASE("Profiles: parse, defaults and validation", "[profiles]")
     CHECK(a.keepAliveSec == 30);
     CHECK(a.hostKeyPolicy == HostKeyPolicy::WarnOnChange);
     CHECK(a.legacyAlgorithms);
-    CHECK(a.extraJson.find("autoReconnect") != std::string::npos); // kept for later milestones
+    CHECK(a.autoReconnect);
+    CHECK(a.extraJson.find("wtTab") != std::string::npos); // unknown fields kept for later milestones
 
     const Profile &b = pf.profiles[1];
     CHECK(b.name == "fw"); // defaults to id

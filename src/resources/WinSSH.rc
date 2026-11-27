@@ -12,7 +12,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 IDI_WINSSH ICON "../../assets/icons/WinSSH.ico"
 
 // Profile dialog (create / edit). Opened from the picker with Ctrl+N, Ctrl+E or Ctrl+S.
-IDD_PROFILE DIALOGEX 0, 0, 300, 234
+IDD_PROFILE DIALOGEX 0, 0, 300, 248
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
 CAPTION "WinSSH profile"
@@ -41,11 +41,12 @@ BEGIN
     LTEXT           "Host key polic&y:", -1, 10, 170, 72, 8
     COMBOBOX        IDC_PF_POLICY, 85, 168, 120, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     AUTOCHECKBOX    "Allow &legacy algorithms (old switches, routers)", IDC_PF_LEGACY, 85, 186, 205, 10, WS_TABSTOP
-    LTEXT           "", IDC_PF_ERROR, 10, 200, 280, 9
-    PUSHBUTTON      "&Connect", IDC_PF_CONNECT, 10, 213, 55, 14, WS_TABSTOP
-    PUSHBUTTON      "Sa&ve", IDC_PF_SAVE, 125, 213, 50, 14, WS_TABSTOP
-    DEFPUSHBUTTON   "Save && C&onnect", IDOK, 180, 213, 62, 14, WS_TABSTOP
-    PUSHBUTTON      "Cancel", IDCANCEL, 247, 213, 43, 14, WS_TABSTOP
+    AUTOCHECKBOX    "&Reconnect automatically (e.g. after a device reboot)", IDC_PF_RECONNECT, 85, 200, 205, 10, WS_TABSTOP
+    LTEXT           "", IDC_PF_ERROR, 10, 214, 280, 9
+    PUSHBUTTON      "&Connect", IDC_PF_CONNECT, 10, 227, 55, 14, WS_TABSTOP
+    PUSHBUTTON      "Sa&ve", IDC_PF_SAVE, 125, 227, 50, 14, WS_TABSTOP
+    DEFPUSHBUTTON   "Save && C&onnect", IDOK, 180, 227, 62, 14, WS_TABSTOP
+    PUSHBUTTON      "Cancel", IDCANCEL, 247, 227, 43, 14, WS_TABSTOP
 END
 
 VS_VERSION_INFO VERSIONINFO
