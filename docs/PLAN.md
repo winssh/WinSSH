@@ -668,7 +668,19 @@ Lessons:
       new conpty-run commands `mark` / `reject-raw`).
       Manual re-test (2026-11-27): CB2 rebooted during a session → the message appears under the last
       line, the session reconnects and continues below it.
-- [ ] Session logging (+ hotkey), timestamp prefix.
+- [x] Session log and timestamps (PR M6-2): `Ctrl+] l` / `--log` / profile `"log": { "enabled", "timestamps" }`
+      / dialog checkbox → `%LOCALAPPDATA%\WinSSH\logs\<profile or host>-YYYYMMDD-HHMMSS.log`
+      (`WINSSH_LOG_DIR` for tests). Server output only, plain text (`log/LineAssembler`: escape sequences
+      dropped, lone CR redraws, backspace, alternate screen not logged but marked), a time per line, drop
+      and reconnect markers, header and footer, flushed on every write. `Ctrl+] t` / `--timestamps`:
+      gray time at the start of each line on screen (`log/ScreenTimestamper`, keeps the server's colors,
+      paused in full-screen apps); it also replaces Bridge's own alternate-screen tracker.
+      Two separate settings, both in the dialog and the profile: timestamps on screen (default off,
+      `screenTimestamps`, `--timestamps`, `Ctrl+] t`) and in the log file (default on,
+      `log.timestamps`, `--log-no-timestamps`).
+      Tests: 118 unit tests; e2e `session-log.txt` on CB2 (plain colored text, on-screen time, drop +
+      reconnect markers, `Ctrl+] i`, nothing after `Ctrl+] l`, no ESC in the file) via new conpty-run
+      `expect-file` / `reject-file`; reconnect, picker and the other scripts still pass.
 - [ ] Send-on-connect commands.
 - [ ] Then pick from backlog (section 8).
 

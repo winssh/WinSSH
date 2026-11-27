@@ -24,6 +24,9 @@ winssh [options] <profile>
   --host-key-policy <p>   strict (default), accept-new, or warn-on-change
   --legacy-algorithms     Allow ssh-rsa and SHA-1 key exchange (old devices)
   --reconnect             Reconnect when the connection drops (device reboot); --no-reconnect
+  --log                   Log the session to %LOCALAPPDATA%\WinSSH\logs; --no-log
+  --log-no-timestamps     No time at the start of each log file line (on by default)
+  --timestamps            Show the time at the start of each line on screen (off by default)
   -V, --version           Show version
   -h, --help              Show this help
 ```
@@ -53,6 +56,8 @@ Press `Ctrl+]`, then:
 | `f` | Toggle keyword highlighting |
 | `i` | Connection info (server, host key fingerprint, cipher) |
 | `r` | Reconnect now |
+| `l` | Session log to a file on/off |
+| `t` | Timestamps on screen on/off |
 | `x` | Disconnect and exit |
 | `Ctrl+]` | Send `Ctrl+]` to the server |
 
@@ -161,6 +166,7 @@ src/
   highlight/        VT scanner, PCRE2 rule engine, highlighter
   picker/           connection picker (TUI) and the Win32 profile dialog
   ssh/              libssh2 session, known_hosts, authentication
+  log/              session log files and on-screen timestamps
   util/             small helpers (UTF-8, base64, paths)
   vault/            saved passwords in Windows Credential Manager
   wt/               Windows Terminal fragment (profiles in the WT menu)
