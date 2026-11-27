@@ -142,7 +142,7 @@ Without `-Push` the tag is only created locally. The same is available on GitHub
 To package locally (needs Inno Setup 6):
 
 ```powershell
-cmake --preset default -DWINSSH_VERSION=0.2.0-rc1
+cmake --preset default "-DWINSSH_VERSION=0.2.0-rc1"   # quotes needed in PowerShell
 cmake --build --preset release
 .\scripts\package.ps1 -Version 0.2.0-rc1          # -> build\dist
 ```

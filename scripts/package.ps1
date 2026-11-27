@@ -26,7 +26,7 @@ if (-not (Test-Path $exe)) { throw "Missing $exe - build first" }
 
 $reported = (& $exe --version | Select-Object -First 1)
 if ($reported -notmatch "^WinSSH v$([regex]::Escape($Version)) ") {
-    throw "WinSSH.exe reports '$reported', expected version $Version (configure with -DWINSSH_VERSION=$Version)"
+    throw "WinSSH.exe reports '$reported', expected version $Version (configure with "-DWINSSH_VERSION=$Version", quoted in PowerShell)"
 }
 
 $dist = Join-Path $root "build\dist"

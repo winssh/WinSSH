@@ -76,7 +76,8 @@ jobs:
           }
 
       - name: Configure
-        run: cmake --preset default -DWINSSH_VERSION=${{ steps.version.outputs.version }}
+        # Quoted: PowerShell splits an unquoted -DNAME=0.1.0-rc1 at the first "." into two arguments.
+        run: cmake --preset default "-DWINSSH_VERSION=${{ steps.version.outputs.version }}"
 
       - name: Build
         run: cmake --build --preset release
