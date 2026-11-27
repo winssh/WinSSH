@@ -2,8 +2,8 @@
 # settings folder; the connection then shows up under RECENT.
 #   .\tests\e2e\run.ps1 -Target root@10.0.0.108 -Script tests\e2e\picker-quick.txt -Picker -NoProfile
 expect No profiles or recent connections yet
-send root@10.0.0.108
-expect Enter: connect to root@10.0.0.108
+send ${TARGET}
+expect Enter: connect to ${TARGET}
 send \r
 send echo QUICK_$((1+6))\r
 expect QUICK_7

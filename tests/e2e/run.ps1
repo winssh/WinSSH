@@ -36,7 +36,13 @@ foreach ($exe in @($winssh, $driver)) {
     if (-not (Test-Path $exe)) { throw "Missing $exe - build first (cmake --build --preset release)" }
 }
 
-$scriptPath = Resolve-Path $Script
+# Scripts may use ${TARGET} (as given, e.g. root@10.0.0.115:2222) and ${HOST} (10.0.0.115), so they
+# do not depend on a device's address.
+$targetHost = ($Target -replace '^[^@]*@', '') -replace ':\d+$', ''
+$scriptText = (Get-Content -Raw (Resolve-Path $Script)).Replace('${TARGET}', $Target).Replace('${HOST}', $targetHost)
+New-Item -ItemType Directory -Force (Join-Path $root "build") | Out-Null
+$scriptPath = Join-Path $root "build\e2e-script.txt"
+Set-Content -Path $scriptPath -Value $scriptText -Encoding utf8NoBOM -NoNewline
 Remove-Item -Recurse -Force $configDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $configDir | Out-Null
 if ($ConfigFixture) {

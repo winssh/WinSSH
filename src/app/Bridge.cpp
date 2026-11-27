@@ -19,7 +19,15 @@ using asio::ip::tcp;
 Bridge::Bridge(asio::io_context &io, ssh::Session &session, LIBSSH2_CHANNEL *channel,
                console::OutputWriter &output, highlight::Highlighter *highlighter, RulesSource *rules,
                std::string info)
-    : io_(io), session_(session), channel_(channel), output_(output), highlighter_(highlighter), rules_(rules),
+    : io_(io), session_(session), channel_(channel), output_(output), highlighter_(highlighter),
+      altTracker_([](std::string_view) {},
+                  [this](std::string_view, highlight::ControlKind kind) {
+                      if (kind == highlight::ControlKind::AltScreenOn)
+                          altScreen_ = true;
+                      else if (kind == highlight::ControlKind::AltScreenOff)
+                          altScreen_ = false;
+                  }),
+      rules_(rules),
       info_(std::move(info)), flushTimer_(io), rulesTimer_(io), keepAliveTimer_(io)
 {
 }
@@ -95,6 +103,10 @@ void Bridge::Execute(Command command)
                    (highlighter_ && highlighter_->Enabled() ? "on" : "off") +
                    (highlighter_ && highlighter_->InAltScreen() ? " (paused: full-screen app)" : "") + "\r\n");
         break;
+    case Command::Reconnect:
+        reconnectRequested_ = true;
+        Finish(false, "reconnect requested (Ctrl+] r)");
+        break;
     case Command::Exit:
         userExit_ = true;
         Finish(true, {});
@@ -105,10 +117,16 @@ void Bridge::Execute(Command command)
     }
 }
 
+bool Bridge::InAltScreen() const
+{
+    return highlighter_ ? highlighter_->InAltScreen() : altScreen_;
+}
+
 void Bridge::WriteRemote(std::string_view bytes)
 {
     if (!highlighter_)
     {
+        altTracker_.Feed(bytes);
         output_.Write(bytes);
         return;
     }

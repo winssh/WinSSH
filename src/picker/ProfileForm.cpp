@@ -70,6 +70,7 @@ ProfileForm FormFromProfile(const config::Profile &p, bool hasSavedPassword)
     f.keepAlive = std::to_string(p.keepAliveSec);
     f.hostKeyPolicy = p.hostKeyPolicy;
     f.legacyAlgorithms = p.legacyAlgorithms;
+    f.autoReconnect = p.autoReconnect;
     f.hasSavedPassword = hasSavedPassword;
     return f;
 }
@@ -128,6 +129,7 @@ config::Profile ProfileFromForm(const ProfileForm &f, const config::Profile *ori
     p.keepAliveSec = ToInt(f.keepAlive.empty() ? "0" : f.keepAlive).value_or(0);
     p.hostKeyPolicy = f.hostKeyPolicy;
     p.legacyAlgorithms = f.legacyAlgorithms;
+    p.autoReconnect = f.autoReconnect;
     return p;
 }
 

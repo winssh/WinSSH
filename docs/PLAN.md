@@ -460,7 +460,8 @@ Each milestone ends with something runnable.
       keyboard-interactive and passphrase keys are implemented but not yet tested against a server.
 - [x] Host-key check against `known_hosts` (same key type only; unparsable lines skipped), first-connect
       prompt with SHA256 fingerprint, accepted key appended as one line, mismatch refused with a warning.
-      First-connect prompt not yet tested end to end (both test hosts are already known).
+      First-connect prompt tested end to end in M6 (`hostkey-first.txt`, CB2's new address): wrong
+      answer asked again, `yes` appends an `ssh-ed25519` line that `ssh.exe` then accepts without a prompt.
 - [x] PTY + shell, raw console input, resize → `window-change`, UTF-8 (no split characters on output).
 - [x] Clean exit, remote exit code (255 on connection/auth errors), console mode restored; Ctrl+C while
       connecting or at a prompt stops cleanly instead of killing the process.
@@ -644,7 +645,29 @@ Lessons:
 
 ### M6 — Lab-work extras
 
-- [ ] Keepalive + auto-reconnect with backoff.
+- [x] Auto-reconnect (PR M6-1): `autoReconnect` profile field (was kept as an unknown field since M4),
+      `--reconnect` / `--no-reconnect`, dialog checkbox. `RunConnectPlan` is a loop over `RunAttempt`:
+      connect/handshake errors, a dropped connection, a channel that does not close cleanly, or a shell
+      ended by a signal → wait 1, 2, 4, 8, 10… s (`Enter` now, `Esc`/`q`/`Ctrl+C` stop, exit 255) and
+      try again, also for the first connection. Never retried: normal exit (shell's code), `Ctrl+] x`,
+      login failure, host-key failure. After a drop the terminal is reset (alternate screen, cursor,
+      mouse modes) and the highlighter state is cleared. `Ctrl+] r` reconnects on request (also without
+      auto-reconnect). Keepalive defaults to 15 s for reconnecting sessions so half-open connections
+      are noticed. Tests: 104 unit tests; e2e `reconnect-stop.txt` (unreachable host, backoff to attempt 3,
+      Esc → 255) passes; without `--reconnect` an unreachable host still exits 255 at once.
+      `reconnect.txt` passes on CB2 (now 10.0.0.115): `kill -9 $PPID` while `less` was used → terminal
+      leaves the alternate screen, reconnects, highlighting works, `Ctrl+] i` shows "reconnect 1",
+      `Ctrl+] r` reconnects, `exit 6` → exit code 6 (found and fixed: the reconnect number was off by one).
+      All 9 e2e scripts pass on CB2. e2e scripts now use `${TARGET}` / `${HOST}` placeholders (run.ps1).
+      Manual test in Windows Terminal (reboot of CB2) found a display bug, fixed: after a drop at the
+      prompt the "[winssh] connection to ..." line appeared at the top of the screen and the new session
+      overwrote older lines. Cause: the reset always sent "leave alternate screen" (`?1049l`), which also
+      restores the cursor saved on entering it; now sent only when the session was in the alternate
+      screen (tracked by the highlighter, or by `Bridge` itself with `--no-highlight`). `reconnect.txt`
+      now drops once inside `less` (expects `?1049l` from WinSSH) and twice at the prompt (rejects it,
+      new conpty-run commands `mark` / `reject-raw`).
+      Manual re-test (2026-11-27): CB2 rebooted during a session → the message appears under the last
+      line, the session reconnects and continues below it.
 - [ ] Session logging (+ hotkey), timestamp prefix.
 - [ ] Send-on-connect commands.
 - [ ] Then pick from backlog (section 8).

@@ -8,11 +8,23 @@ add_executable(winssh_tests
     test_highlight.cpp
     test_picker.cpp
     test_profiles.cpp
+    test_reconnect.cpp
     test_rules.cpp
     test_utf8.cpp
     test_wt.cpp
 )
 target_link_libraries(winssh_tests PRIVATE winssh_core Catch2::Catch2WithMain)
+
+# Catch2's test discovery (CatchAddTests.cmake) passes the JSON test list to CMake unquoted, so a
+# ';' in a test name splits it and the build fails with "JSON failed parsing". Catch it here with a
+# clear message instead.
+file(GLOB _winssh_test_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+foreach(_src IN LISTS _winssh_test_sources)
+    file(STRINGS "${_src}" _bad REGEX "TEST_CASE\\(\"[^\"]*[;]")
+    if(_bad)
+        message(FATAL_ERROR "${_src}: a TEST_CASE name contains ';', which breaks Catch2 test discovery:\n${_bad}")
+    endif()
+endforeach()
 
 include(Catch)
 catch_discover_tests(winssh_tests)

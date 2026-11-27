@@ -47,6 +47,16 @@ public:
         styles_ = std::move(styles);
     }
 
+    // Back to the state of a fresh session (after a reconnect): no held text, no server colors,
+    // not in the alternate screen. Rules and the on/off switch are kept.
+    void Reset()
+    {
+        scanner_.Reset();
+        pending_.clear();
+        activeSgr_.clear();
+        altScreen_ = false;
+    }
+
     void SetEnabled(bool enabled) { enabled_ = enabled; }
     bool Enabled() const { return enabled_; }
     // Full-screen apps (vim, htop, less) use the alternate screen; highlighting pauses there.

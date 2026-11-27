@@ -214,6 +214,11 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             o.legacyAlgorithms = true;
             continue;
         }
+        if (a == "--reconnect" || a == "--no-reconnect")
+        {
+            o.reconnect = a == "--reconnect";
+            continue;
+        }
         if (a == "--check-rules" || a == "--init-rules" || a == "--list" || a == "--import-ssh-config" ||
             a == "--wt-install" || a == "--wt-uninstall")
         {
@@ -316,6 +321,7 @@ std::string UsageText()
            "  --keepalive <sec>       Send a keepalive every <sec> seconds (0 = off)\n"
            "  --host-key-policy <p>   strict (default), accept-new, or warn-on-change\n"
            "  --legacy-algorithms     Allow ssh-rsa and SHA-1 key exchange (old devices)\n"
+           "  --reconnect             Reconnect when the connection drops (--no-reconnect: off)\n"
            "  -V, --version           Show version\n"
            "  -h, --help              Show this help\n"
            "\n"

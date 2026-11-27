@@ -3,6 +3,7 @@
 
 #include "app/EscapeKeys.h"
 #include "console/Console.h"
+#include "highlight/VtScanner.h"
 
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
@@ -53,6 +54,10 @@ public:
 
     const std::string &Error() const { return error_; }
     bool UserExited() const { return userExit_; }
+    // The user pressed Ctrl+] r: drop this connection and connect again.
+    bool ReconnectRequested() const { return reconnectRequested_; }
+    // True while the remote side is in the alternate screen (vim, less, htop), also without highlighting.
+    bool InAltScreen() const;
 
     // Sends an SSH keepalive every `seconds` (0 = off). Call before Run().
     void SetKeepAlive(int seconds) { keepAliveSec_ = seconds; }
@@ -80,6 +85,9 @@ private:
     LIBSSH2_CHANNEL *channel_;
     console::OutputWriter &output_;
     highlight::Highlighter *highlighter_;
+    // Alternate-screen tracking when there is no highlighter (the highlighter tracks it otherwise).
+    highlight::VtScanner altTracker_;
+    bool altScreen_ = false;
     RulesSource *rules_;
     std::string info_;
     EscapeKeys escape_;
@@ -96,6 +104,7 @@ private:
     bool done_ = false;
     bool ok_ = false;
     bool userExit_ = false;
+    bool reconnectRequested_ = false;
     std::string error_;
 };
 

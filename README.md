@@ -23,6 +23,7 @@ winssh [options] <profile>
   --keepalive <sec>       Send a keepalive every <sec> seconds (0 = off)
   --host-key-policy <p>   strict (default), accept-new, or warn-on-change
   --legacy-algorithms     Allow ssh-rsa and SHA-1 key exchange (old devices)
+  --reconnect             Reconnect when the connection drops (device reboot); --no-reconnect
   -V, --version           Show version
   -h, --help              Show this help
 ```
@@ -51,6 +52,7 @@ Press `Ctrl+]`, then:
 | `h` | Help |
 | `f` | Toggle keyword highlighting |
 | `i` | Connection info (server, host key fingerprint, cipher) |
+| `r` | Reconnect now |
 | `x` | Disconnect and exit |
 | `Ctrl+]` | Send `Ctrl+]` to the server |
 
@@ -185,6 +187,7 @@ Needs a host that accepts your SSH key or agent and is already in `known_hosts`:
 ```
 
 Tests use their own settings folder (`build\e2e-config`), so your own `highlight.json` does not affect them.
+Scripts can use `${TARGET}` and `${HOST}`, filled in from `-Target`, so they work after a device's address changes.
 
 ## License
 
