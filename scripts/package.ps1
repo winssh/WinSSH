@@ -1,6 +1,7 @@
 # Packages a built WinSSH into build\dist:
 #   WinSSH-portable-<version>.zip   WinSSH.exe + README + LICENSE + docs
 #   WinSSH-setup-<version>.exe      Inno Setup installer (needs ISCC.exe, Inno Setup 6)
+#   SHA256SUMS.txt                  checksums of the files above
 #
 #   .\scripts\package.ps1 -Version 0.2.0
 #   .\scripts\package.ps1 -Version 0.2.0-rc1 -BuildDir build -SkipInstaller
@@ -26,7 +27,7 @@ if (-not (Test-Path $exe)) { throw "Missing $exe - build first" }
 
 $reported = (& $exe --version | Select-Object -First 1)
 if ($reported -notmatch "^WinSSH v$([regex]::Escape($Version)) ") {
-    throw "WinSSH.exe reports '$reported', expected version $Version (configure with "-DWINSSH_VERSION=$Version", quoted in PowerShell)"
+    throw "WinSSH.exe reports '$reported', expected version $Version (configure with `"-DWINSSH_VERSION=$Version`", quoted in PowerShell)"
 }
 
 $dist = Join-Path $root "build\dist"
@@ -57,3 +58,12 @@ if (-not $SkipInstaller) {
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
     Write-Host "Created $(Join-Path $dist "WinSSH-setup-$Version.exe")"
 }
+
+# Checksums of this version's files (sha256sum format: "<hash>  <name>").
+$sums = Join-Path $dist "SHA256SUMS.txt"
+$files = @(Get-ChildItem -Path $dist -File | Where-Object { $_.Name -like "WinSSH-*-$Version.*" } | Sort-Object Name)
+if ($files.Count -eq 0) { throw "No packages for $Version in $dist" }
+$files | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLower())  $($_.Name)" } |
+    Set-Content -Path $sums -Encoding ascii
+Write-Host "Created $sums"
+Get-Content $sums | ForEach-Object { Write-Host "  $_" }

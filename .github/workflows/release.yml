@@ -87,12 +87,7 @@ jobs:
 
       - name: Package
         shell: pwsh
-        run: |
-          .\scripts\package.ps1 -Version ${{ steps.version.outputs.version }}
-          Get-ChildItem build\dist -File -Exclude SHA256SUMS.txt | Get-FileHash -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
-            Set-Content build\dist\SHA256SUMS.txt -Encoding ascii
-          Get-Content build\dist\SHA256SUMS.txt
+        run: .\scripts\package.ps1 -Version ${{ steps.version.outputs.version }}
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

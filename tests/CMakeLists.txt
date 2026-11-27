@@ -22,6 +22,8 @@ find_program(WINSSH_PWSH NAMES pwsh)
 if(WINSSH_PWSH)
     add_test(NAME tag-version-rules
              COMMAND "${WINSSH_PWSH}" -NoProfile -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/TagVersion.Tests.ps1")
+    add_test(NAME powershell-scripts-parse
+             COMMAND "${WINSSH_PWSH}" -NoProfile -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/Parse-Scripts.Tests.ps1")
 else()
     message(STATUS "pwsh not found: tag-version-rules test skipped")
 endif()
