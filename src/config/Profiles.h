@@ -34,6 +34,9 @@ struct Profile
     HostKeyPolicy hostKeyPolicy = HostKeyPolicy::Strict;
     bool legacyAlgorithms = false;      // allow ssh-rsa / SHA-1 key exchange for old devices
     bool autoReconnect = false;         // reconnect when the connection drops (device reboot)
+    bool logEnabled = false;            // "log": { "enabled": ... } session log to a file
+    bool logTimestamps = true;          // "log": { "timestamps": ... } time at the start of each logged line
+    bool screenTimestamps = false;      // time at the start of each output line on screen
     std::string extraJson;              // fields WinSSH does not know yet, kept when saving
 };
 

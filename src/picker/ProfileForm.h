@@ -25,6 +25,9 @@ struct ProfileForm
     config::HostKeyPolicy hostKeyPolicy = config::HostKeyPolicy::Strict;
     bool legacyAlgorithms = false;
     bool autoReconnect = false;
+    bool logEnabled = false;
+    bool logTimestamps = true;     // times in the log file
+    bool screenTimestamps = false; // times on screen
 
     bool hasSavedPassword = false; // a password is already in Credential Manager
     std::string originalId;        // id of the profile being edited; empty for a new one

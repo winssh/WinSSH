@@ -6,6 +6,7 @@
 #include "console/OutputWriter.h"
 #include "highlight/Highlighter.h"
 #include "ssh/Session.h"
+#include "util/Utf8.h"
 
 #include <boost/asio/post.hpp>
 
@@ -19,15 +20,7 @@ using asio::ip::tcp;
 Bridge::Bridge(asio::io_context &io, ssh::Session &session, LIBSSH2_CHANNEL *channel,
                console::OutputWriter &output, highlight::Highlighter *highlighter, RulesSource *rules,
                std::string info)
-    : io_(io), session_(session), channel_(channel), output_(output), highlighter_(highlighter),
-      altTracker_([](std::string_view) {},
-                  [this](std::string_view, highlight::ControlKind kind) {
-                      if (kind == highlight::ControlKind::AltScreenOn)
-                          altScreen_ = true;
-                      else if (kind == highlight::ControlKind::AltScreenOff)
-                          altScreen_ = false;
-                  }),
-      rules_(rules),
+    : io_(io), session_(session), channel_(channel), output_(output), highlighter_(highlighter), rules_(rules),
       info_(std::move(info)), flushTimer_(io), rulesTimer_(io), keepAliveTimer_(io)
 {
 }
@@ -99,9 +92,17 @@ void Bridge::Execute(Command command)
         WriteLocal(std::string("highlighting ") + (highlighter_->Enabled() ? "on" : "off") + "\r\n");
         break;
     case Command::Info:
-        WriteLocal(info_ + "Highlighting: " +
-                   (highlighter_ && highlighter_->Enabled() ? "on" : "off") +
-                   (highlighter_ && highlighter_->InAltScreen() ? " (paused: full-screen app)" : "") + "\r\n");
+        WriteLocal(info_ + "Highlighting: " + (highlighter_ && highlighter_->Enabled() ? "on" : "off") +
+                   (highlighter_ && highlighter_->InAltScreen() ? " (paused: full-screen app)" : "") + "\r\n" +
+                   "Log: " + (log_ && log_->IsOn() ? util::WideToUtf8(log_->Path().wstring()) : std::string("off")) +
+                   "\r\n" + "Timestamps on screen: " + (stamper_->Enabled() ? "on" : "off") + "\r\n");
+        break;
+    case Command::ToggleLog:
+        ToggleLog();
+        break;
+    case Command::ToggleTimestamps:
+        stamper_->SetEnabled(!stamper_->Enabled());
+        WriteLocal(std::string("timestamps on screen ") + (stamper_->Enabled() ? "on" : "off") + "\r\n");
         break;
     case Command::Reconnect:
         reconnectRequested_ = true;
@@ -117,20 +118,46 @@ void Bridge::Execute(Command command)
     }
 }
 
+void Bridge::ToggleLog()
+{
+    if (!log_)
+    {
+        WriteLocal("session log is not available here\r\n");
+        return;
+    }
+    if (log_->IsOn())
+    {
+        const std::string path = util::WideToUtf8(log_->Path().wstring());
+        log_->Stop();
+        WriteLocal("log closed: " + path + "\r\n");
+        return;
+    }
+    std::string error;
+    if (!log_->Start(&error))
+    {
+        WriteLocal("cannot start the log: " + error + "\r\n");
+        return;
+    }
+    WriteLocal("logging the server's output to " + util::WideToUtf8(log_->Path().wstring()) +
+               "\r\n  (only what the server sends is logged; anything it echoes back, like typed text, is included)\r\n");
+}
+
 bool Bridge::InAltScreen() const
 {
-    return highlighter_ ? highlighter_->InAltScreen() : altScreen_;
+    // The timestamper sees every byte that reaches the screen, with or without highlighting.
+    return stamper_->InAltScreen();
 }
 
 void Bridge::WriteRemote(std::string_view bytes)
 {
+    if (log_)
+        log_->Write(bytes); // the server's own bytes, before our colors
     if (!highlighter_)
     {
-        altTracker_.Feed(bytes);
-        output_.Write(bytes);
+        output_.Write(stamper_->Process(bytes));
         return;
     }
-    output_.Write(highlighter_->Process(bytes));
+    output_.Write(stamper_->Process(highlighter_->Process(bytes)));
     if (highlighter_->HasPending())
     {
         // Show a held-back partial line (e.g. a prompt) if no more output comes soon.
@@ -189,7 +216,7 @@ void Bridge::ReloadRules()
 void Bridge::FlushHighlighter()
 {
     if (highlighter_ && highlighter_->HasPending())
-        output_.Write(highlighter_->Flush());
+        output_.Write(stamper_->Process(highlighter_->Flush()));
 }
 
 void Bridge::WriteLocal(const std::string &text)

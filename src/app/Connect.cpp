@@ -4,6 +4,7 @@
 
 #include "app/Bridge.h"
 #include "app/Reconnect.h"
+#include "log/SessionLog.h"
 #include "app/ConnectPlan.h"
 #include "config/Profiles.h"
 #include "vault/PasswordVault.h"
@@ -200,6 +201,8 @@ struct SessionContext
     RulesSource *rules;
     bool firstConnection; // history and "password saved" only once
     int attemptNumber;    // shown in Ctrl+] i after a reconnect (0 = first connection)
+    log::SessionLog *sessionLog;
+    log::ScreenTimestamper *stamper;
 };
 
 // One connection: connect, verify the host key, authenticate, run the shell until it ends.
@@ -317,6 +320,7 @@ Attempt RunAttempt(SessionContext &ctx)
     else
     {
         PrintError("\x1b[36m[winssh] reconnected to " + ctx.target + "\x1b[0m\r\n");
+        ctx.sessionLog->Marker("reconnected to " + ctx.target);
     }
 
     console::SetTitle("WinSSH: " + (plan.profileId.empty() ? ctx.target : plan.displayName));
@@ -339,8 +343,11 @@ Attempt RunAttempt(SessionContext &ctx)
     console::InputReader input;
     if (ctx.highlighter)
         ctx.highlighter->Reset(); // nothing from the previous connection (e.g. alternate screen)
+    ctx.stamper->Reset();
     Bridge bridge(io, session, channel, output, ctx.highlighter, ctx.rules, info);
     bridge.SetKeepAlive(plan.keepAliveSec);
+    bridge.SetSessionLog(ctx.sessionLog);
+    bridge.SetTimestamper(ctx.stamper);
     const bool ended = bridge.Run(input);
     output.Flush();
     ctx.guard.RestoreInput();
@@ -429,6 +436,22 @@ int RunConnectPlan(const ConnectPlan &plan, const std::string *oneTimePassword)
         highlighter = std::make_unique<highlight::Highlighter>(loaded.compiled.matcher, loaded.compiled.styles);
     }
 
+    // Session log and on-screen timestamps also live across reconnects.
+    log::SessionLog sessionLog(plan.profileId.empty() ? plan.host : plan.profileId,
+                               target + (plan.profileId.empty() ? "" : " (profile " + plan.profileId + ")"),
+                               plan.logTimestamps);
+    if (plan.logEnabled)
+    {
+        std::string error;
+        if (sessionLog.Start(&error))
+            PrintError("\x1b[36m[winssh] logging the server's output to " +
+                       util::WideToUtf8(sessionLog.Path().wstring()) + " (Ctrl+] l stops)\x1b[0m\r\n");
+        else
+            PrintError("winssh: cannot start the session log: " + error + "\r\n");
+    }
+    log::ScreenTimestamper stamper;
+    stamper.SetEnabled(plan.screenTimestamps);
+
     bool everConnected = false;
     int reconnects = 0; // successful reconnects so far
     int failures = 0;   // failed attempts in a row
@@ -436,7 +459,7 @@ int RunConnectPlan(const ConnectPlan &plan, const std::string *oneTimePassword)
     {
         // If this attempt connects after an earlier session, it is reconnect number reconnects + 1.
         SessionContext ctx{plan,           user, target, oneTimePassword, guard, highlighter.get(), rules.get(),
-                           !everConnected, everConnected ? reconnects + 1 : 0};
+                           !everConnected, everConnected ? reconnects + 1 : 0, &sessionLog, &stamper};
         const Attempt a = RunAttempt(ctx);
         if (a.connected)
         {
@@ -452,6 +475,7 @@ int RunConnectPlan(const ConnectPlan &plan, const std::string *oneTimePassword)
         if (a.connected)
             PrintError(TerminalResetSequence(a.altScreen)); // e.g. vim was open when the device rebooted
         const char *verb = a.connected ? "connection to " : "cannot connect to ";
+        sessionLog.Marker(a.forced ? std::string("reconnect requested") : verb + plan.host + ": " + a.reason);
         PrintError(std::string("\r\n\x1b[33m[winssh] ") + (a.forced ? "reconnecting to " + plan.host + "\x1b[0m\r\n"
                                                                     : verb + plan.host + ": " + a.reason + "\x1b[0m\r\n"));
         if (!plan.reconnect && !a.forced)

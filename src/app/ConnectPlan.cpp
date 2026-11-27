@@ -24,6 +24,9 @@ ConnectPlan ResolveConnect(const cli::Options &o, const std::vector<config::Prof
         plan.legacyAlgorithms = p->legacyAlgorithms;
         plan.savePassword = p->savePassword;
         plan.reconnect = p->autoReconnect;
+        plan.logEnabled = p->logEnabled;
+        plan.logTimestamps = p->logTimestamps;
+        plan.screenTimestamps = p->screenTimestamps;
     }
     else
     {
@@ -49,6 +52,12 @@ ConnectPlan ResolveConnect(const cli::Options &o, const std::vector<config::Prof
         plan.legacyAlgorithms = true;
     if (o.reconnect)
         plan.reconnect = *o.reconnect;
+    if (o.log)
+        plan.logEnabled = *o.log;
+    if (o.screenTimestamps)
+        plan.screenTimestamps = true;
+    if (o.logNoTimestamps)
+        plan.logTimestamps = false;
     // A dead connection (device rebooted without closing TCP) is only noticed when something is
     // sent; keepalives make that happen. Explicit --keepalive 0 is respected.
     if (plan.reconnect && plan.keepAliveSec == 0 && !o.keepAliveSec)
@@ -84,6 +93,12 @@ config::Profile ProfileFromOptions(const cli::Options &o, const config::Profile 
         p.savePassword = true;
     if (o.reconnect)
         p.autoReconnect = *o.reconnect;
+    if (o.log)
+        p.logEnabled = *o.log;
+    if (o.screenTimestamps)
+        p.screenTimestamps = true;
+    if (o.logNoTimestamps)
+        p.logTimestamps = false;
     return p;
 }
 

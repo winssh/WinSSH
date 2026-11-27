@@ -40,6 +40,10 @@ add_library(winssh_core STATIC
     highlight/Rules.h
     highlight/VtScanner.cpp
     highlight/VtScanner.h
+    log/LogText.cpp
+    log/LogText.h
+    log/SessionLog.cpp
+    log/SessionLog.h
     picker/PickerLoop.cpp
     picker/PickerLoop.h
     picker/PickerModel.cpp

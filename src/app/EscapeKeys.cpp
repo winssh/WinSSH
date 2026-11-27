@@ -36,6 +36,8 @@ EscapeResult EscapeKeys::Feed(std::string_view keys)
         case 'f': r.commands.push_back(Command::ToggleHighlight); break;
         case 'i': r.commands.push_back(Command::Info); break;
         case 'r': r.commands.push_back(Command::Reconnect); break;
+        case 'l': r.commands.push_back(Command::ToggleLog); break;
+        case 't': r.commands.push_back(Command::ToggleTimestamps); break;
         case 'x': r.commands.push_back(Command::Exit); break;
         default: r.commands.push_back(Command::Unknown); break;
         }
@@ -50,6 +52,8 @@ std::string EscapeKeys::HelpText()
            "  f  toggle keyword highlighting\r\n"
            "  i  connection info\r\n"
            "  r  reconnect now\r\n"
+           "  l  session log to a file on/off\r\n"
+           "  t  timestamps on screen on/off\r\n"
            "  x  disconnect and exit\r\n"
            "  Ctrl+]  send Ctrl+] to the server\r\n";
 }

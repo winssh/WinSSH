@@ -25,6 +25,9 @@ struct ConnectPlan
     bool legacyAlgorithms = false;
     bool savePassword = false;
     bool reconnect = false; // reconnect when the connection drops
+    bool logEnabled = false;       // session log from the start
+    bool logTimestamps = true;     // timestamps in the log file
+    bool screenTimestamps = false; // timestamps on screen from the start
 };
 
 // Keepalive used for reconnecting sessions when none is set, so a dead connection is noticed.

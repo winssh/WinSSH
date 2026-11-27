@@ -219,6 +219,21 @@ ParseResult ParseCommandLine(const std::vector<std::string> &args)
             o.reconnect = a == "--reconnect";
             continue;
         }
+        if (a == "--log" || a == "--no-log")
+        {
+            o.log = a == "--log";
+            continue;
+        }
+        if (a == "--timestamps")
+        {
+            o.screenTimestamps = true;
+            continue;
+        }
+        if (a == "--log-no-timestamps")
+        {
+            o.logNoTimestamps = true;
+            continue;
+        }
         if (a == "--check-rules" || a == "--init-rules" || a == "--list" || a == "--import-ssh-config" ||
             a == "--wt-install" || a == "--wt-uninstall")
         {
@@ -322,6 +337,9 @@ std::string UsageText()
            "  --host-key-policy <p>   strict (default), accept-new, or warn-on-change\n"
            "  --legacy-algorithms     Allow ssh-rsa and SHA-1 key exchange (old devices)\n"
            "  --reconnect             Reconnect when the connection drops (--no-reconnect: off)\n"
+           "  --log                   Log the session to %LOCALAPPDATA%\\WinSSH\\logs (--no-log: off)\n"
+           "  --log-no-timestamps     No time at the start of each log file line (on by default)\n"
+           "  --timestamps            Show the time at the start of each line on screen (off by default)\n"
            "  -V, --version           Show version\n"
            "  -h, --help              Show this help\n"
            "\n"

@@ -19,7 +19,7 @@ using nlohmann::json;
 const std::set<std::string> kKnownFields = {"id",           "name",          "host",         "port",
                                             "user",         "identityFile",  "savePassword", "highlight",
                                             "keepAliveSec", "hostKeyPolicy", "legacyAlgorithms",
-                                            "autoReconnect"};
+                                            "autoReconnect", "log", "screenTimestamps"};
 
 bool EqualsNoCase(std::string_view a, std::string_view b)
 {
@@ -120,7 +120,8 @@ ProfileFile ParseProfiles(std::string_view text)
                   Field(j, "savePassword", p.savePassword, isBool, "true or false", where, pf.errors) &&
                   Field(j, "keepAliveSec", p.keepAliveSec, isInt, "a number", where, pf.errors) &&
                   Field(j, "legacyAlgorithms", p.legacyAlgorithms, isBool, "true or false", where, pf.errors) &&
-                  Field(j, "autoReconnect", p.autoReconnect, isBool, "true or false", where, pf.errors);
+                  Field(j, "autoReconnect", p.autoReconnect, isBool, "true or false", where, pf.errors) &&
+                  Field(j, "screenTimestamps", p.screenTimestamps, isBool, "true or false", where, pf.errors);
         if (!ok)
             continue;
         if (j.contains("highlight"))
@@ -133,6 +134,19 @@ ProfileFile ParseProfiles(std::string_view text)
             }
             for (const json &v : h)
                 p.highlight.push_back(v.get<std::string>());
+        }
+        if (j.contains("log"))
+        {
+            const json &l = j["log"];
+            const bool okShape = l.is_object() && (!l.contains("enabled") || l["enabled"].is_boolean()) &&
+                                 (!l.contains("timestamps") || l["timestamps"].is_boolean());
+            if (!okShape)
+            {
+                pf.errors.push_back(where + ": \"log\" must be { \"enabled\": true/false, \"timestamps\": true/false }");
+                continue;
+            }
+            p.logEnabled = l.value("enabled", false);
+            p.logTimestamps = l.value("timestamps", true);
         }
         if (j.contains("hostKeyPolicy"))
         {
@@ -224,6 +238,10 @@ std::string SerializeProfiles(const std::vector<Profile> &profiles)
             j["legacyAlgorithms"] = true;
         if (p.autoReconnect)
             j["autoReconnect"] = true;
+        if (p.screenTimestamps)
+            j["screenTimestamps"] = true;
+        if (p.logEnabled || !p.logTimestamps)
+            j["log"] = {{"enabled", p.logEnabled}, {"timestamps", p.logTimestamps}};
         if (!p.extraJson.empty())
         {
             const json extra = json::parse(p.extraJson, nullptr, false);
