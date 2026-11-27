@@ -9,7 +9,7 @@
 #
 # Without -Push the tag is only created locally (remove it with: git tag -d <tag>).
 # Checks: the commit is on <remote>/main, the tag is new and newer than the last release, and
-# (when gh is available) the commit's CI checks passed.
+# (when gh is available) the commit's CI checks passed; a dry run only reports the CI state.
 [CmdletBinding()]
 param(
     [string]$Version = '',
@@ -47,6 +47,7 @@ function Write-Result([System.Collections.Specialized.OrderedDictionary]$rows) {
     }
 }
 
+$exitCode = 0
 Push-Location (Resolve-Path "$PSScriptRoot\..")
 try {
     Invoke-Git fetch $Remote main --tags --prune --quiet | Out-Null
@@ -66,22 +67,29 @@ try {
     $short = $commit.Substring(0, 7)
     $subject = (Invoke-Git log -1 --format=%s $commit).Trim()
 
-    # CI status of the commit (GitHub check runs), when gh can tell us.
+    # CI status of the commit (GitHub check runs), when gh can tell us. A dry run only reports it;
+    # creating a tag refuses a commit whose CI is not green.
     $ci = 'not checked'
-    if (-not $SkipCiCheck -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+    $ciBlocks = $false
+    if ($SkipCiCheck) {
+        $ci = 'not checked (-SkipCiCheck)'
+    }
+    elseif (Get-Command gh -ErrorAction SilentlyContinue) {
         $url = (Invoke-Git remote get-url $Remote).Trim()
         if ($url -match 'github\.com[:/]([^/]+)/([^/]+?)(\.git)?$') {
             $repo = "$($Matches[1])/$($Matches[2])"
             $json = & gh api "repos/$repo/commits/$commit/check-runs" 2>$null
             if ($LASTEXITCODE -eq 0 -and $json) {
-                $runs = @(($json | ConvertFrom-Json).check_runs)
-                $bad = @($runs | Where-Object { $_.status -ne 'completed' -or $_.conclusion -notin @('success', 'skipped', 'neutral') })
-                if ($runs.Count -eq 0) { $ci = 'no checks found' }
-                elseif ($bad.Count) { throw "CI on $short is not green: $(($bad | ForEach-Object { "$($_.name)=$($_.status)/$($_.conclusion)" }) -join ', '). Use -SkipCiCheck to tag anyway." }
-                else { $ci = "green ($($runs.Count) check(s))" }
+                $summary = Get-CiSummary -CheckRuns @(($json | ConvertFrom-Json).check_runs)
+                $ci = $summary.Text
+                # "no checks found" does not block: a repo or commit may have no CI at all.
+                $ciBlocks = -not $summary.Green -and $ci -ne 'no checks found'
             }
             else { $ci = 'could not read (gh not signed in or no access)' }
         }
+    }
+    else {
+        $ci = 'not checked (gh not installed)'
     }
 
     Write-Result ([ordered]@{
@@ -92,6 +100,15 @@ try {
             'CI'           = $ci
             'Mode'         = if ($DryRun) { 'dry run: nothing created' } elseif ($Push) { 'create and push' } else { 'create locally (not pushed)' }
         })
+
+    if ($ciBlocks) {
+        if ($DryRun) {
+            Write-Host "Warning: CI on $short is not green yet; tagging now would be refused (wait, or use -SkipCiCheck)." -ForegroundColor Yellow
+        }
+        else {
+            throw "CI on $short is not green ($($ci -replace '^not green: ', '')). Wait for it to finish, or use -SkipCiCheck to tag anyway."
+        }
+    }
 
     if ($env:GITHUB_OUTPUT) {
         Add-Content -Path $env:GITHUB_OUTPUT -Value "tag=$($next.Tag)"
@@ -109,6 +126,13 @@ try {
         Write-Host "Not pushed. Push with: git push $Remote $($next.Tag)   (or delete: git tag -d $($next.Tag))"
     }
 }
+catch {
+    # One readable line instead of PowerShell's error record with the script excerpt.
+    Write-Host "tag.ps1: $($_.Exception.Message)" -ForegroundColor Red
+    if ($env:GITHUB_STEP_SUMMARY) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "**Error:** $($_.Exception.Message)" }
+    $exitCode = 1
+}
 finally {
     Pop-Location
 }
+if ($exitCode) { exit $exitCode }

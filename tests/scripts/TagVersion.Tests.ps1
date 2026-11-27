@@ -85,5 +85,25 @@ CheckThrows 'bad version' { Next -Version '1.2' } 'not X.Y.Z'
 CheckThrows 'version and bump' { Next -Version '1.0.0' -Bump 'minor' } 'not both'
 CheckThrows 'rc twice' { Next -Version '1.0.0-rc1' -Rc } 'not both'
 
+# --- CI summary
+function Run([string]$name, [string]$status, [string]$conclusion) {
+    [pscustomobject]@{ name = $name; status = $status; conclusion = $conclusion }
+}
+$ci = Get-CiSummary -CheckRuns @()
+Check 'ci none green' $ci.Green $false
+Check 'ci none text' $ci.Text 'no checks found'
+$ci = Get-CiSummary -CheckRuns @((Run 'Build' 'completed' 'success'), (Run 'Build' 'completed' 'success'))
+Check 'ci green' $ci.Green $true
+Check 'ci green text' $ci.Text 'green (2 runs)'
+$ci = Get-CiSummary -CheckRuns @((Run 'Build' 'completed' 'skipped'))
+Check 'ci skipped is green' $ci.Text 'green (1 run)'
+$ci = Get-CiSummary -CheckRuns @((Run 'Build and test (Windows x64)' 'in_progress' ''), (Run 'Build and test (Windows x64)' 'in_progress' ''))
+Check 'ci in progress not green' $ci.Green $false
+Check 'ci in progress grouped' $ci.Text 'not green: Build and test (Windows x64) (2 runs): in progress'
+$ci = Get-CiSummary -CheckRuns @((Run 'Build' 'completed' 'failure'), (Run 'Lint' 'queued' ''), (Run 'Docs' 'completed' 'success'))
+Check 'ci mixed' $ci.Text 'not green: Build: failure; Lint: queued'
+$ci = Get-CiSummary -CheckRuns @((Run 'Build' 'completed' 'timed_out'))
+Check 'ci underscore' $ci.Text 'not green: Build: timed out'
+
 Write-Host "$($script:count - $script:failures)/$($script:count) checks passed"
 exit ([int]($script:failures -gt 0))
