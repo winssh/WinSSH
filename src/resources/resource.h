@@ -22,3 +22,6 @@
 #define IDC_PF_CONNECT 215
 #define IDC_PF_SAVE 216
 #define IDC_PF_RECONNECT 217
+#define IDC_PF_LOG 218
+#define IDC_PF_LOG_TS 219
+#define IDC_PF_SCREEN_TS 220

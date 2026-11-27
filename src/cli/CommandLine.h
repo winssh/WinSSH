@@ -62,6 +62,9 @@ struct Options
     std::optional<std::string> hostKeyPolicy; // --host-key-policy strict|accept-new|warn-on-change
     bool legacyAlgorithms = false;        // --legacy-algorithms
     std::optional<bool> reconnect;        // --reconnect / --no-reconnect
+    std::optional<bool> log;              // --log / --no-log (session log to a file)
+    bool screenTimestamps = false;        // --timestamps: time at the start of each line on screen
+    bool logNoTimestamps = false;         // --log-no-timestamps: no times in the log file
 
     bool highlight = true;                             // --no-highlight turns it off
     std::vector<std::string> highlightSets{"default"}; // --highlight a,b

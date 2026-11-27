@@ -86,7 +86,9 @@ give; other fields stay as they are.
       "keepAliveSec": 30,
       "hostKeyPolicy": "warn-on-change",
       "legacyAlgorithms": false,
-      "autoReconnect": true
+      "autoReconnect": true,
+      "log": { "enabled": true, "timestamps": true },
+      "screenTimestamps": false
     }
   ]
 }
@@ -106,6 +108,8 @@ give; other fields stay as they are.
 | `hostKeyPolicy` | `strict` | See below |
 | `legacyAlgorithms` | `false` | Also offer `ssh-rsa`/`ssh-dss` host keys, SHA-1 key exchange and CBC ciphers, for old switches and routers |
 | `autoReconnect` | `false` | Reconnect in the same tab when the connection drops (see below) |
+| `log` | off | `{ "enabled": true }` logs every session of this profile to a file; `"timestamps": false` leaves out the times in the file (see below) |
+| `screenTimestamps` | `false` | Show the time at the start of each output line on screen (see below) |
 
 Comments are allowed. Fields WinSSH does not know are kept when it rewrites the file. If the file
 has errors, `--save`, `--delete` and `--import-ssh-config` refuse to change it, so nothing is lost.
@@ -131,6 +135,44 @@ WinSSH stays open when the connection drops, for example while a device reboots 
 - Reconnecting sessions send a keepalive every 15 s when `keepAliveSec` is not set, so a device that
   disappears without closing the connection is noticed. `--keepalive 0` turns that off.
 - Without automatic reconnect, `Ctrl+] r` still reconnects once, on request.
+
+## Session log and timestamps
+
+`Ctrl+]` then `l` starts or stops a log file; `--log` (or the profile's `"log": { "enabled": true }`,
+or the dialog's **Log the session to a file** box) starts one with the session. Files go to
+`%LOCALAPPDATA%\WinSSH\logs`, named `<profile or host>-YYYYMMDD-HHMMSS.log`:
+
+```text
+# WinSSH session log: root@10.0.0.115 (profile cb2), started 2026-11-27 17:17:41
+[17:17:41.779] root@fuelcloud-E13F8:~# journalctl -f -u fc-transaction
+[17:17:42.101] Nov 27 17:17:42 fuelcloud-E13F8 fc-transaction[812]: ...
+[17:17:43.120] --- connection to 10.0.0.115: Connection reset by peer ---
+[17:17:52.513] --- reconnected to root@10.0.0.115 ---
+# log closed 2026-11-27 17:20:05
+```
+
+- Only what the **server sends** is logged, as plain text: no colors or other escape sequences,
+  progress lines keep their last state. What you type appears only where the server echoes it
+  (a shell does; password prompts do not).
+- Each line starts with the time its first character arrived (see the table below to turn it off).
+- Full-screen apps (vim, less, htop) are not logged; one line notes when they open and close.
+- A drop and the reconnect are marked; the same file continues.
+- `Ctrl+] i` shows the current log file.
+
+### Timestamps: on screen and in the log file
+
+Two separate settings:
+
+| | Timestamps on screen | Timestamps in the log file |
+|---|---|---|
+| What | Gray `[HH:MM:SS.mmm]` at the start of each output line in the terminal (paused in full-screen apps), e.g. to see how long a boot step takes | `[HH:MM:SS.mmm]` at the start of each line of the log file |
+| Default | **off** | **on** |
+| Profile | `"screenTimestamps": true` | `"log": { "timestamps": false }` to turn off |
+| Dialog | **Show timestamps on screen** | **with times on each line** (next to **Log the session to a file**) |
+| Command line | `--timestamps` | `--log-no-timestamps` |
+| In a session | `Ctrl+]` then `t` | (fixed for the log file once it starts) |
+
+`--save` stores these flags in the profile like the other options.
 
 ## Saved passwords
 

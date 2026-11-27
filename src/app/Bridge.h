@@ -3,7 +3,7 @@
 
 #include "app/EscapeKeys.h"
 #include "console/Console.h"
-#include "highlight/VtScanner.h"
+#include "log/SessionLog.h"
 
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
@@ -59,6 +59,11 @@ public:
     // True while the remote side is in the alternate screen (vim, less, htop), also without highlighting.
     bool InAltScreen() const;
 
+    // Session log (Ctrl+] l) and on-screen timestamps (Ctrl+] t), owned by the caller so they live
+    // across reconnects. Without SetTimestamper the bridge uses its own (off).
+    void SetSessionLog(log::SessionLog *sessionLog) { log_ = sessionLog; }
+    void SetTimestamper(log::ScreenTimestamper *stamper) { stamper_ = stamper ? stamper : &ownStamper_; }
+
     // Sends an SSH keepalive every `seconds` (0 = off). Call before Run().
     void SetKeepAlive(int seconds) { keepAliveSec_ = seconds; }
 
@@ -76,6 +81,7 @@ private:
     void WriteRemote(std::string_view bytes);
     void WriteLocal(const std::string &text);
     void FlushHighlighter();
+    void ToggleLog();
     void ScheduleRulesCheck();
     void ScheduleKeepAlive(int seconds);
     void ReloadRules();
@@ -85,9 +91,10 @@ private:
     LIBSSH2_CHANNEL *channel_;
     console::OutputWriter &output_;
     highlight::Highlighter *highlighter_;
-    // Alternate-screen tracking when there is no highlighter (the highlighter tracks it otherwise).
-    highlight::VtScanner altTracker_;
-    bool altScreen_ = false;
+    // Last step before the screen: timestamps (when on); also tracks the alternate screen.
+    log::ScreenTimestamper ownStamper_;
+    log::ScreenTimestamper *stamper_ = &ownStamper_;
+    log::SessionLog *log_ = nullptr;
     RulesSource *rules_;
     std::string info_;
     EscapeKeys escape_;

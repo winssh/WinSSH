@@ -14,6 +14,8 @@ enum class Command
     ToggleHighlight,
     Info,
     Reconnect,
+    ToggleLog,
+    ToggleTimestamps,
     Exit,
     Unknown,
 };
@@ -33,7 +35,8 @@ public:
 
     // Feeds typed keys. After the escape key, the next key is a command:
     //   h or ?  help        f  toggle highlighting     i  connection info
-    //   r       reconnect   x  exit        escape key again: send the escape key itself
+    //   r       reconnect   l  session log on/off   t  timestamps on screen on/off
+    //   x       exit        escape key again: send the escape key itself
     // Letters also work with Ctrl held (Ctrl+F = f), except Ctrl+H/Ctrl+I which are Backspace/Tab.
     EscapeResult Feed(std::string_view keys);
 

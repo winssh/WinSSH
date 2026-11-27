@@ -71,6 +71,9 @@ ProfileForm FormFromProfile(const config::Profile &p, bool hasSavedPassword)
     f.hostKeyPolicy = p.hostKeyPolicy;
     f.legacyAlgorithms = p.legacyAlgorithms;
     f.autoReconnect = p.autoReconnect;
+    f.logEnabled = p.logEnabled;
+    f.logTimestamps = p.logTimestamps;
+    f.screenTimestamps = p.screenTimestamps;
     f.hasSavedPassword = hasSavedPassword;
     return f;
 }
@@ -130,6 +133,9 @@ config::Profile ProfileFromForm(const ProfileForm &f, const config::Profile *ori
     p.hostKeyPolicy = f.hostKeyPolicy;
     p.legacyAlgorithms = f.legacyAlgorithms;
     p.autoReconnect = f.autoReconnect;
+    p.logEnabled = f.logEnabled;
+    p.logTimestamps = f.logTimestamps;
+    p.screenTimestamps = f.screenTimestamps;
     return p;
 }
 

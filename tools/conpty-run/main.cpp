@@ -9,6 +9,8 @@
 //   expect-raw <text>  same, but search the raw output (escapes allowed, e.g. \e[?1049h)
 //   mark               remember the current end of the raw output
 //   reject-raw <text>  fail if <text> appears in the raw output since the last mark
+//   expect-file <glob> <text>   some file matching <glob> contains <text> (e.g. a log, after exit)
+//   reject-file <glob> <text>   files match <glob>, and none contains <text>
 //   resize <C>x<R>     resize the pseudo console
 //   sleep <ms>
 //   copy <src> <dst>   overwrite a file (e.g. a config file the program watches)
@@ -310,6 +312,41 @@ int wmain(int argc, wchar_t **argv)
             ok = f == std::string::npos;
             if (!ok)
                 detail = "(found at raw offset " + std::to_string(f) + ")";
+        }
+        else if (cmd == "expect-file" || cmd == "reject-file")
+        {
+            // expect-file <glob> <text>: some file matching <glob> contains <text>
+            // reject-file <glob> <text>: no file matching <glob> contains <text>
+            const auto sp2 = arg.find(' ');
+            const std::string pattern = arg.substr(0, sp2);
+            const std::string needle = sp2 == std::string::npos ? "" : Unescape(arg.substr(sp2 + 1));
+            std::wstring wpattern = Widen(pattern);
+            for (auto &ch : wpattern)
+                if (ch == L'/')
+                    ch = L'\\';
+            const auto slash = wpattern.find_last_of(L'\\');
+            const std::wstring dir = slash == std::wstring::npos ? L"" : wpattern.substr(0, slash + 1);
+            WIN32_FIND_DATAW fd{};
+            HANDLE h = FindFirstFileW(wpattern.c_str(), &fd);
+            int files = 0;
+            bool found = false;
+            if (h != INVALID_HANDLE_VALUE)
+            {
+                do
+                {
+                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                        continue;
+                    ++files;
+                    std::ifstream in(dir + fd.cFileName, std::ios::binary);
+                    std::stringstream ss;
+                    ss << in.rdbuf();
+                    if (ss.str().find(needle) != std::string::npos)
+                        found = true;
+                } while (FindNextFileW(h, &fd));
+                FindClose(h);
+            }
+            ok = cmd == "expect-file" ? found : (files > 0 && !found);
+            detail = "(" + std::to_string(files) + " file(s) matched)";
         }
         else if (cmd == "copy")
         {

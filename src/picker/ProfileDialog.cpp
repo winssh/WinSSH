@@ -112,6 +112,10 @@ void Load(HWND dlg, const ProfileForm &f)
     ::CheckDlgButton(dlg, IDC_PF_SAVEPW, f.savePassword ? BST_CHECKED : BST_UNCHECKED);
     ::CheckDlgButton(dlg, IDC_PF_LEGACY, f.legacyAlgorithms ? BST_CHECKED : BST_UNCHECKED);
     ::CheckDlgButton(dlg, IDC_PF_RECONNECT, f.autoReconnect ? BST_CHECKED : BST_UNCHECKED);
+    ::CheckDlgButton(dlg, IDC_PF_LOG, f.logEnabled ? BST_CHECKED : BST_UNCHECKED);
+    ::CheckDlgButton(dlg, IDC_PF_LOG_TS, f.logTimestamps ? BST_CHECKED : BST_UNCHECKED);
+    ::CheckDlgButton(dlg, IDC_PF_SCREEN_TS, f.screenTimestamps ? BST_CHECKED : BST_UNCHECKED);
+    ::EnableWindow(::GetDlgItem(dlg, IDC_PF_LOG_TS), f.logEnabled);
 
     SetCue(dlg, IDC_PF_NAME, L"same as ID");
     SetCue(dlg, IDC_PF_USER, L"your Windows user name");
@@ -142,6 +146,9 @@ void Read(HWND dlg, ProfileForm &f)
     f.savePassword = ::IsDlgButtonChecked(dlg, IDC_PF_SAVEPW) == BST_CHECKED;
     f.legacyAlgorithms = ::IsDlgButtonChecked(dlg, IDC_PF_LEGACY) == BST_CHECKED;
     f.autoReconnect = ::IsDlgButtonChecked(dlg, IDC_PF_RECONNECT) == BST_CHECKED;
+    f.logEnabled = ::IsDlgButtonChecked(dlg, IDC_PF_LOG) == BST_CHECKED;
+    f.logTimestamps = ::IsDlgButtonChecked(dlg, IDC_PF_LOG_TS) == BST_CHECKED;
+    f.screenTimestamps = ::IsDlgButtonChecked(dlg, IDC_PF_SCREEN_TS) == BST_CHECKED;
     f.password = GetText(dlg, IDC_PF_PASSWORD);
     const auto sel = ::SendDlgItemMessageW(dlg, IDC_PF_POLICY, CB_GETCURSEL, 0, 0);
     f.hostKeyPolicy = sel == 1   ? config::HostKeyPolicy::AcceptNew
@@ -241,6 +248,10 @@ INT_PTR CALLBACK DialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
                 SetText(dlg, IDC_PF_ID, SuggestId(GetText(dlg, IDC_PF_HOST), *ctx->existing));
             return TRUE;
         case IDC_PF_BROWSE: Browse(dlg); return TRUE;
+        case IDC_PF_LOG:
+            // "with times on each line" belongs to the log file option.
+            ::EnableWindow(::GetDlgItem(dlg, IDC_PF_LOG_TS), ::IsDlgButtonChecked(dlg, IDC_PF_LOG) == BST_CHECKED);
+            return TRUE;
         case IDC_PF_CONNECT: Finish(dlg, *ctx, DialogResult::Connect); return TRUE;
         case IDC_PF_SAVE: Finish(dlg, *ctx, DialogResult::Save); return TRUE;
         case IDOK: Finish(dlg, *ctx, DialogResult::SaveAndConnect); return TRUE;

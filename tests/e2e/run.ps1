@@ -49,8 +49,14 @@ if ($ConfigFixture) {
     Copy-Item (Resolve-Path $ConfigFixture) (Join-Path $configDir "highlight.json")
 }
 
+# Session logs go to build\e2e-logs (emptied first), so scripts can check them with expect-file.
+$logDir = Join-Path $root "build\e2e-logs"
+Remove-Item -Recurse -Force $logDir -ErrorAction SilentlyContinue
+
 $oldConfig = $env:WINSSH_CONFIG_DIR
+$oldLogDir = $env:WINSSH_LOG_DIR
 $env:WINSSH_CONFIG_DIR = $configDir
+$env:WINSSH_LOG_DIR = $logDir
 Push-Location $root
 try {
     $destination = @($Target)
@@ -66,6 +72,7 @@ try {
 finally {
     Pop-Location
     $env:WINSSH_CONFIG_DIR = $oldConfig
+    $env:WINSSH_LOG_DIR = $oldLogDir
 }
 Write-Host "Raw output saved to $log"
 exit $code
