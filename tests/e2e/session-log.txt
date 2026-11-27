@@ -1,0 +1,44 @@
+# Session log and timestamps (M6). run.ps1 points WINSSH_LOG_DIR at build\e2e-logs.
+#   .\tests\e2e\run.ps1 -Target root@10.0.0.115 -Script tests\e2e\session-log.txt -ExtraArgs '--log','--reconnect' -Timeout 40
+expect logging the server's output to
+send echo READY_$((1+1))\r
+expect READY_2
+
+# Colored output is logged as plain text
+send printf '\033[31m%s\033[0m\n' LOGGED_RED_$((3+3))\r
+expect LOGGED_RED_6
+
+# Ctrl+] t: time at the start of each line on screen
+send \x1dt
+expect timestamps on screen on
+send echo STAMPED_$((1+2))\r
+expect ] STAMPED_3
+send \x1dt
+expect timestamps on screen off
+
+# A dropped connection and the reconnect are marked in the same log
+send kill -9 $PPID\r
+expect [winssh] reconnected to
+send echo AFTER_$((4+4))\r
+expect AFTER_8
+
+# Ctrl+] i shows the log file; Ctrl+] l closes it
+send \x1di
+expect Log:
+send \x1dl
+expect log closed:
+send echo NOTLOGGED_$((5+5))\r
+expect NOTLOGGED_10
+send exit\r
+expect closed.
+exit 0
+
+# The log file: plain text, timestamps, markers, nothing after Ctrl+] l
+expect-file build/e2e-logs/*.log # WinSSH session log: ${TARGET}
+expect-file build/e2e-logs/*.log ] LOGGED_RED_6
+expect-file build/e2e-logs/*.log --- connection to ${HOST}:
+expect-file build/e2e-logs/*.log --- reconnected to ${TARGET} ---
+expect-file build/e2e-logs/*.log ] AFTER_8
+expect-file build/e2e-logs/*.log # log closed
+reject-file build/e2e-logs/*.log NOTLOGGED_10
+reject-file build/e2e-logs/*.log \e
