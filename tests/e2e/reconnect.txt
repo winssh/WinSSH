@@ -1,0 +1,51 @@
+# Automatic reconnect (M6). "kill -9 $PPID" kills this session's sshd process, so the connection
+# drops without an exit status, like a device that reboots.
+#   .\tests\e2e\run.ps1 -Target root@10.0.0.115 -Script tests\e2e\reconnect.txt -ExtraArgs '--reconnect' -Timeout 40
+send echo READY_$((1+1))\r
+expect READY_2
+
+# 1. Drop while a full-screen app is open: WinSSH must leave the alternate screen itself.
+#    (A subshell keeps the shell's $PPID, so it kills this session's sshd 2 s after less starts;
+#    less never quits, so any ?1049l after the mark comes from WinSSH.)
+send (sleep 2; kill -9 $PPID) & seq 1 200 | less\r
+expect-raw \e[?1049h
+mark
+expect [winssh] connection to
+expect-raw \e[?1049l
+expect [winssh] reconnecting to ${TARGET}
+expect [winssh] reconnected to ${TARGET}
+send echo BACK_$((3+4))\r
+expect BACK_7
+
+# Highlighting works again in the new session
+send printf '%s\n' fault; echo HL_$((2+2))\r
+expect HL_4
+expect-raw \e[31mfault
+
+# Ctrl+] i tells it is a reconnected session
+send \x1di
+expect Reconnect: on, this is reconnect 1
+
+# 2. Drop at the prompt (no full-screen app): no "leave alternate screen", which would move the
+#    cursor to the top of the screen and let the new session overwrite older lines.
+mark
+send kill -9 $PPID\r
+expect [winssh] connection to
+expect [winssh] reconnected to ${TARGET}
+reject-raw \e[?1049l
+send echo SECOND_$((5+5))\r
+expect SECOND_10
+
+# Ctrl+] r reconnects right away (no full-screen app: again no alternate-screen reset)
+mark
+send \x1dr
+expect [winssh] reconnecting to
+expect [winssh] reconnected to ${TARGET}
+reject-raw \e[?1049l
+send echo AGAIN_$((4+4))\r
+expect AGAIN_8
+
+# A normal exit is not a drop: no reconnect, the shell's exit code
+send exit 6\r
+expect closed.
+exit 6

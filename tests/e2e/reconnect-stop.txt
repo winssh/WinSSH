@@ -1,0 +1,9 @@
+# Waiting for a host that does not answer, then Esc stops (M6).
+#   .\tests\e2e\run.ps1 -Target root@10.0.0.115:1 -Script tests\e2e\reconnect-stop.txt -ExtraArgs '--reconnect' -Timeout 60
+expect cannot connect to ${HOST}
+expect reconnecting to root@${HOST} in 1 s (attempt 1)
+# Retries back off: attempt 2 waits 2 s, attempt 3 waits 4 s
+expect (attempt 3)
+send \x1b
+expect [winssh] reconnect stopped.
+exit 255

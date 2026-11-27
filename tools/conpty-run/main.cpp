@@ -7,6 +7,8 @@
 //   send <text>        type text; escapes: \r \n \t \e \xNN \\  (e.g. "send exit\r", "send \x03")
 //   expect <text>      wait until <text> appears in the output (VT sequences stripped)
 //   expect-raw <text>  same, but search the raw output (escapes allowed, e.g. \e[?1049h)
+//   mark               remember the current end of the raw output
+//   reject-raw <text>  fail if <text> appears in the raw output since the last mark
 //   resize <C>x<R>     resize the pseudo console
 //   sleep <ms>
 //   copy <src> <dst>   overwrite a file (e.g. a config file the program watches)
@@ -243,7 +245,7 @@ int wmain(int argc, wchar_t **argv)
         shared.cv.notify_all();
     });
 
-    size_t textPos = 0, rawPos = 0;
+    size_t textPos = 0, rawPos = 0, markPos = 0;
     int failures = 0, lineNo = 0;
     std::string line;
     auto deadline = [&] { return std::chrono::steady_clock::now() + std::chrono::seconds(timeoutSec); };
@@ -293,6 +295,21 @@ int wmain(int argc, wchar_t **argv)
             const auto x = arg.find('x');
             const COORD size{static_cast<SHORT>(std::stoi(arg.substr(0, x))), static_cast<SHORT>(std::stoi(arg.substr(x + 1)))};
             ok = SUCCEEDED(ResizePseudoConsole(pc, size));
+        }
+        else if (cmd == "mark")
+        {
+            // Later reject-raw checks only look at output after this point.
+            std::lock_guard<std::mutex> lock(shared.m);
+            markPos = shared.raw.size();
+        }
+        else if (cmd == "reject-raw")
+        {
+            const std::string needle = Unescape(arg);
+            std::lock_guard<std::mutex> lock(shared.m);
+            const auto f = shared.raw.find(needle, markPos);
+            ok = f == std::string::npos;
+            if (!ok)
+                detail = "(found at raw offset " + std::to_string(f) + ")";
         }
         else if (cmd == "copy")
         {

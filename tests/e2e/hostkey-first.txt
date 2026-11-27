@@ -1,0 +1,16 @@
+# First connection to a host that is not in ~/.ssh/known_hosts (M1): fingerprint prompt,
+# a wrong answer is asked again, "yes" adds one line to known_hosts.
+# Needs a host that is NOT yet in known_hosts (ssh-keygen -F <host> prints nothing):
+#   .\tests\e2e\run.ps1 -Target root@10.0.0.115 -Script tests\e2e\hostkey-first.txt
+expect can't be established.
+expect key fingerprint is SHA256:
+expect Are you sure you want to continue connecting (yes/no)?
+send maybe\r
+expect Please type 'yes' or 'no'.
+send yes\r
+expect to the list of known hosts.
+send echo READY_$((1+1))\r
+expect READY_2
+send exit\r
+expect closed.
+exit 0
