@@ -622,6 +622,25 @@ main thread (boost::asio io_context)                 input thread
       run by CTest as `tag-version-rules`. Local dry runs: `main` (only the initial commit) → `v0.0.1`;
       a commit not on `main` is refused; `develop`'s commits would give `v0.1.0` / `v0.1.0-rc1`.
       Not yet run on GitHub: `tag.yml` (works once it is on `main`).
+- [x] Follow-up after the first release: a dry run reports the CI state (with a warning) instead of
+      stopping; only creating a tag refuses non-green CI. CI runs are grouped by name
+      ("Build and test (2 runs): in progress", `Get-CiSummary`, unit tested). Errors are one line
+      (`tag.ps1: ...`, exit 1) instead of PowerShell's error record.
+
+### First release log
+
+| Tag | Date | Result |
+|---|---|---|
+| `v0.1.0-rc1` | 2026-11-27 | Failed at Configure: PowerShell split the unquoted `-DWINSSH_VERSION=0.1.0-rc1` at the first `.`. Fixed in #11. No release. |
+| `v0.1.0-rc2` | 2026-11-27 | Failed at Package: #11 broke `package.ps1` (quotes inside a double-quoted string). Running the whole step locally then showed `SHA256SUMS.txt` was never written (`Get-ChildItem -Exclude`). Fixed in #12. No release. |
+| `v0.1.0-rc3` | 2026-11-27 | **Published** (pre-release): installer, portable zip, `SHA256SUMS.txt`. |
+
+Lessons:
+- Test release steps in **PowerShell, exactly as the workflow runs them**. Local packaging was run
+  from Git Bash, which does not split arguments, so the rc1 bug only showed on the runner.
+- After a fix, re-run the whole failing step, not only the changed line (rc2).
+- `powershell-scripts-parse` (CTest) now parses every `.ps1`/`.psm1`, so syntax errors fail CI on the PR.
+- Failed rc tags are kept (no tag deletion); the next rc number is free.
 
 ### M6 — Lab-work extras
 
