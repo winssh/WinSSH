@@ -85,7 +85,8 @@ give; other fields stay as they are.
       "highlight": ["default", "journal"],
       "keepAliveSec": 30,
       "hostKeyPolicy": "warn-on-change",
-      "legacyAlgorithms": false
+      "legacyAlgorithms": false,
+      "autoReconnect": true
     }
   ]
 }
@@ -104,9 +105,32 @@ give; other fields stay as they are.
 | `keepAliveSec` | `0` (off) | Send an SSH keepalive when the connection was idle this long |
 | `hostKeyPolicy` | `strict` | See below |
 | `legacyAlgorithms` | `false` | Also offer `ssh-rsa`/`ssh-dss` host keys, SHA-1 key exchange and CBC ciphers, for old switches and routers |
+| `autoReconnect` | `false` | Reconnect in the same tab when the connection drops (see below) |
 
 Comments are allowed. Fields WinSSH does not know are kept when it rewrites the file. If the file
 has errors, `--save`, `--delete` and `--import-ssh-config` refuse to change it, so nothing is lost.
+
+## Automatic reconnect
+
+With `autoReconnect: true` (or `--reconnect`, or the dialog's **Reconnect automatically** box),
+WinSSH stays open when the connection drops, for example while a device reboots after flashing:
+
+```text
+[winssh] connection to 10.0.0.108: Connection reset by peer
+[winssh] reconnecting to root@10.0.0.108 in 4 s (attempt 3) - Enter: now, Esc: stop
+[winssh] reconnected to root@10.0.0.108
+```
+
+- Retries wait 1, 2, 4, 8, then 10 s, until the host answers. `Enter` retries now; `Esc`, `q` or
+  `Ctrl+C` stops (exit code 255).
+- It also waits for a host that is not up yet when WinSSH starts.
+- Not retried: a normal `exit` (WinSSH ends with the shell's exit code), `Ctrl+] x`, a failed login,
+  or a changed host key (a person has to decide; see `warn-on-change` below).
+- A shell killed by a signal (e.g. during shutdown) counts as a drop and is reconnected.
+- If the connection dropped inside vim, less or htop, the terminal is put back to normal first.
+- Reconnecting sessions send a keepalive every 15 s when `keepAliveSec` is not set, so a device that
+  disappears without closing the connection is noticed. `--keepalive 0` turns that off.
+- Without automatic reconnect, `Ctrl+] r` still reconnects once, on request.
 
 ## Saved passwords
 
