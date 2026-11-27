@@ -1,0 +1,29 @@
+# The connection picker (M4): run.ps1 -Picker saves the target as profile "e2e" and starts
+# WinSSH with no destination.
+#   .\tests\e2e\run.ps1 -Target root@10.0.0.108 -Script tests\e2e\picker.txt -Picker
+expect select a connection
+expect PROFILES
+expect e2e
+
+# Letters go to the filter; a filter with no match says so; Esc clears it
+send zzz
+expect No match.
+send \x1b
+expect Ctrl+N new
+
+# Delete asks for confirmation; "n" cancels and keeps the profile
+send \x1b[3~
+expect Delete profile 'e2e'
+send n
+expect Delete cancelled.
+
+# Filter by name and connect with Enter
+send e2e
+expect Filter: e2e_
+send \r
+send echo PICKED_$((2+3))\r
+expect PICKED_5
+
+send exit 4\r
+expect closed.
+exit 4

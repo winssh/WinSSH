@@ -1,0 +1,20 @@
+{
+  "name": "winssh",
+  "version": "0.0.0",
+  "description": "SSH terminal for Windows, built to run as a Windows Terminal tab",
+  "dependencies": [
+    "boost-asio",
+    "libssh2",
+    "nlohmann-json",
+    "pcre2"
+  ],
+  "features": {
+    "tests": {
+      "description": "Build unit tests",
+      "dependencies": [
+        "catch2"
+      ]
+    }
+  },
+  "builtin-baseline": "38a77589121bd7ec6487927b79c191a75d4ebdd6"
+}
